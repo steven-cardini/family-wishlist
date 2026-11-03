@@ -39,7 +39,7 @@ When writing or editing code, strictly follow these non-negotiable rules:
 2. **Database Queries:** NEVER concatenate variables into SQL strings. ALWAYS use PDO Prepared Statements (`$stmt->prepare()` / `$stmt->execute()`).
 3. **XSS Prevention:** ALWAYS escape dynamic HTML outputs using `htmlspecialchars((string)$var, ENT_QUOTES, 'UTF-8')`.
 4. **Honeypot Validation:** The reservation handler MUST check `empty($_POST['website_url'])`. If filled, reject processing silently.
-5. **Zero Build Steps:** Use version-pinned CDN scripts (with SRI) for Pico.css v2 and Alpine.js. Do NOT add Node.js, npm, Composer, or bundlers. PHPMailer is committed in `lib/PHPMailer/`.
+5. **Zero Build Steps:** Use version-pinned CDN scripts (with SRI) for Pico.css v2 and Alpine.js (CSP build `@alpinejs/csp`, see CSP in `docs/technical_specification.md` 3.5). Do NOT add Node.js, npm, Composer, or bundlers. PHPMailer is committed in `lib/PHPMailer/`.
 6. **No Hardcoded Secrets or Personal Data:** Load configuration dynamically from `config.php`. NEVER commit credentials, personal names, email addresses, domains, or hosting details. Put deployment details into `docs/private_deployment.md` (gitignored).
 7. **CSRF:** Every POST form (except `/cancel`) MUST include and verify the session CSRF token.
 8. **Language:** All UI texts and emails are German (Swiss spelling without "ß", informal "du").

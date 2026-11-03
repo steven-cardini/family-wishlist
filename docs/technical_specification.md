@@ -41,7 +41,7 @@ Each wish entry contains:
 ### 2.2 Frontend & Filtering (`/`)
 - Filtering happens client-side (Alpine.js).
 - **Filter Controls:**
-  - **Recipient(s):** Checkbox filter; a wish matches if it belongs to any selected recipient.
+  - **Recipient(s):** Checkbox filter; a wish matches if it belongs to any selected recipient (none selected: all).
   - **Category:** Dropdown filter.
   - **Status:** "Available only" (default), "Reserved only", "Show all".
 - Sort order: priority wishes first, then newest first.
@@ -95,6 +95,7 @@ Each wish entry contains:
 - Long-lived session: cookie and server-side lifetime of 1 year.
 - Admin login expires after 4 hours (see 7.2).
 - Session files are stored in `data/sessions/` (shared hosts may otherwise delete them early).
+- A session is only started when needed (login, form, message) or when a session cookie exists, so anonymous requests create no session files.
 - Cookie flags: `HttpOnly`, `SameSite=Lax`, `Secure` when served via HTTPS.
 
 ### 3.3 Search Engine Indexing Prevention
@@ -116,7 +117,7 @@ Each wish entry contains:
 
 ### 3.5 HTTP Security Headers
 Sent by `bootstrap.php` on every response:
-- `Content-Security-Policy` (allows only own origin, the pinned CDN scripts/styles and `https:` images; `frame-ancestors 'none'`)
+- `Content-Security-Policy`: scripts and styles only with a per-request nonce (no `'unsafe-eval'`, hence Alpine's CSP build `@alpinejs/csp`), plus the hash of the honeypot's inline style; `https:` and `data:` images (Pico uses `data:` icons); forms to own origin only; `frame-ancestors 'none'`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: no-referrer` (prevents leaking key or cancel token)
 - `X-Robots-Tag: noindex, nofollow`
@@ -126,8 +127,8 @@ CDN assets are version-pinned and loaded with Subresource Integrity (`integrity`
 
 ### 3.6 File Access Protection (`.htaccess`)
 - Redirects HTTP to HTTPS.
-- Denies HTTP access to `data/` (database, sessions), `db/`, `docs/`, `lib/`, `tests/`, dotfiles (e.g., `.git`), and `router.php`.
-- Rewrites extensionless URLs to PHP files (e.g., `/admin` → `admin.php`). The app runs at the domain root.
+- Denies HTTP access to `data/` (database, sessions), `db/`, `docs/`, `lib/`, `tests/`, dotfiles (e.g., `.git`; except `.well-known/` for TLS certificate renewal), and `router.php`, `config.php`, `bootstrap.php`, `db.php`.
+- Rewrites `/admin`, `/reserve` and `/cancel` to their PHP files. The app runs at the domain root.
 - Requires Apache with `mod_rewrite`. Locally, `router.php` emulates the rewrites for `php -S`.
 
 ---
@@ -154,15 +155,13 @@ On every reservation (2.3) and cancellation (2.4) by a giver:
    - Sent to: `giver_email`
    - Content: Wish details, confirmation, and cancellation link (`/cancel?token=...`).
 
-All emails are plain text. The sender (`smtp.from_email`) should belong to the SMTP account to avoid spam filtering.
-
 2. **Parent Notification:**
    - Candidates: all `recipients` with `is_parent = 1` and a non-empty `email`.
    - For each candidate: **Is this recipient linked to the wish in `wish_recipient`?**
      - **NO:** Notification sent (*"Giver X reserved / cancelled Wish Y for Z"*, Z = all recipients of the wish).
      - **YES:** **No notification sent!** (Preserves the surprise for parents' own wishes.)
 
-Admin actions (2.5) send no emails.
+Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp.from_email`) should belong to the SMTP account to avoid spam filtering.
 
 ---
 
@@ -195,11 +194,13 @@ Admin actions (2.5) send no emails.
 ### 7.4 Email Error Handling
 - Database reservation state updates take priority.
 - If SMTP email dispatch fails due to connectivity or credentials, the reservation or cancellation MUST still be recorded in SQLite, and a graceful warning message is presented to the user.
+- SMTP timeout is 15 seconds; failures are written to the PHP error log.
 
 ---
 
 ## 8. Testing (`tests/smoke.php`)
 - Run: `php tests/smoke.php`. Exit code `0` means all checks passed.
 - Copies the app to a temporary directory with a generated test `config.php`, starts `php -S` with `router.php`, and checks the workflows of Sections 2, 3 and 5 via HTTP.
-- Needs no network: emails go to a local SMTP sink started by the test.
+- Needs no network: emails go to a local SMTP sink started by the test (`encryption => ''`).
+- Client-side behavior (Alpine filters, modal) is not covered; verify it in a browser.
 - Never touches the real `config.php` or `data/`.

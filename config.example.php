@@ -19,7 +19,7 @@ return [
     'smtp' => [
         'host' => 'mail.example.com',
         'port' => 587,
-        'encryption' => 'tls', // 'tls' (STARTTLS, port 587) or 'ssl' (port 465)
+        'encryption' => 'tls', // 'tls' (STARTTLS, port 587), 'ssl' (port 465) or '' (none, local tests only)
         'username' => 'wishlist@example.com',
         'password' => '',
         'from_email' => 'wishlist@example.com',

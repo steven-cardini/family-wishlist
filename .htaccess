@@ -1,0 +1,13 @@
+Options -Indexes
+
+RewriteEngine On
+
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# Private files; .well-known stays reachable for TLS certificate renewal
+RewriteRule ^(data|db|docs|lib|tests)(/|$) - [F]
+RewriteRule (^|/)\.(?!well-known/) - [F]
+RewriteRule ^(router|config|bootstrap|db)\.php$ - [F]
+
+RewriteRule ^(admin|reserve|cancel)$ $1.php [L]

@@ -17,8 +17,8 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 
 - **Backend:** Native PHP 8.5 (no frameworks or compilation required)
 - **Database:** SQLite 3 (zero configuration, single file `data/db.sqlite`)
-- **Frontend:** HTML5, Pico.css v2 (CDN), Alpine.js (CDN)
-- **Email Delivery:** PHPMailer (committed, no Composer) via SMTP
+- **Frontend:** HTML5, Pico.css v2 (CDN), Alpine.js CSP build (CDN)
+- **Email Delivery:** PHPMailer 7 (committed, no Composer) via SMTP
 - **Hosting Requirements:** PHP 8.5 with PDO SQLite, Apache with `mod_rewrite`, HTTPS, app at the domain root.
 - **Language:** German UI and emails.
 

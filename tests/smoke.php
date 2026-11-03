@@ -1,0 +1,437 @@
+<?php
+
+declare(strict_types=1);
+
+// End-to-end tests, see docs/technical_specification.md, 8
+
+const ADMIN_PASSWORD = 'test-admin-password';
+const SINK = <<<'PHP'
+<?php
+declare(strict_types=1);
+[, $port, $dir] = $argv;
+$server = stream_socket_server("tcp://127.0.0.1:$port");
+$count = 0;
+while (true) {
+    $conn = @stream_socket_accept($server, 3600);
+    if ($conn === false) {
+        continue;
+    }
+    fwrite($conn, "220 sink\r\n");
+    $to = [];
+    while (($line = fgets($conn)) !== false) {
+        $command = strtoupper(substr($line, 0, 4));
+        if ($command === 'EHLO') {
+            fwrite($conn, "250-sink\r\n250 8BITMIME\r\n");
+        } elseif ($command === 'RCPT') {
+            preg_match('/<([^>]*)>/', $line, $m);
+            $to[] = $m[1];
+            fwrite($conn, "250 ok\r\n");
+        } elseif ($command === 'DATA') {
+            fwrite($conn, "354 go\r\n");
+            $data = '';
+            while (($line = fgets($conn)) !== false && $line !== ".\r\n") {
+                $data .= $line;
+            }
+            $file = sprintf('%s/%04d.json', $dir, ++$count);
+            file_put_contents("$file.tmp", json_encode(['to' => $to, 'data' => $data]));
+            rename("$file.tmp", $file);
+            $to = [];
+            fwrite($conn, "250 ok\r\n");
+        } elseif ($command === 'QUIT') {
+            fwrite($conn, "221 bye\r\n");
+            break;
+        } else {
+            fwrite($conn, "250 ok\r\n");
+        }
+    }
+    fclose($conn);
+}
+PHP;
+
+$root = dirname(__DIR__);
+$tmp = sys_get_temp_dir() . '/wishlist-test-' . bin2hex(random_bytes(4));
+$app = "$tmp/app";
+$mailDir = "$tmp/mails";
+$processes = [];
+$failures = 0;
+
+register_shutdown_function(function () use (&$processes, $tmp): void {
+    foreach ($processes as $process) {
+        proc_terminate($process);
+        proc_close($process);
+    }
+    remove_dir($tmp);
+});
+
+function remove_dir(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($items as $item) {
+        $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    }
+    rmdir($dir);
+}
+
+function copy_app(string $from, string $to): void
+{
+    mkdir($to, 0700, true);
+    foreach (new DirectoryIterator($from) as $item) {
+        $name = $item->getFilename();
+        if ($item->isDot() || in_array($name, ['.git', 'data', 'config.php'], true)) {
+            continue;
+        }
+        if ($item->isDir()) {
+            copy_app($item->getPathname(), "$to/$name");
+        } else {
+            copy($item->getPathname(), "$to/$name");
+        }
+    }
+}
+
+function free_port(): int
+{
+    $socket = stream_socket_server('tcp://127.0.0.1:0');
+    $port = (int)substr(strrchr(stream_socket_get_name($socket, false), ':'), 1);
+    fclose($socket);
+    return $port;
+}
+
+function start(array $command, string $cwd, string $log): mixed
+{
+    return proc_open($command, [0 => ['file', '/dev/null', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']], $pipes, $cwd);
+}
+
+function wait_for_port(int $port): void
+{
+    for ($i = 0; $i < 50; $i++) {
+        $socket = @fsockopen('127.0.0.1', $port);
+        if ($socket !== false) {
+            fclose($socket);
+            return;
+        }
+        usleep(100_000);
+    }
+    fwrite(STDERR, "Port $port not reachable\n");
+    exit(1);
+}
+
+function write_config(string $accessKey): void
+{
+    global $app, $smtpPort, $base;
+    $config = [
+        'base_url' => $base,
+        'timezone' => 'Europe/Zurich',
+        'access_key' => $accessKey,
+        'admin_password_hash' => password_hash(ADMIN_PASSWORD, PASSWORD_DEFAULT),
+        'smtp' => [
+            'host' => '127.0.0.1',
+            'port' => $smtpPort,
+            'encryption' => '',
+            'username' => '',
+            'password' => '',
+            'from_email' => 'wishlist@example.com',
+            'from_name' => 'Familien-Wunschliste',
+        ],
+    ];
+    file_put_contents("$app/config.php", "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($config, true) . ";\n");
+}
+
+function check(string $name, bool $ok): void
+{
+    global $failures;
+    echo ($ok ? 'ok   ' : 'FAIL ') . $name . "\n";
+    if (!$ok) {
+        $failures++;
+    }
+}
+
+/** HTTP request with a cookie jar per client. */
+function http(string $client, string $method, string $path, array $data = []): array
+{
+    global $base, $tmp;
+    $curl = curl_init($base . $path);
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_COOKIEFILE => "$tmp/$client.cookies",
+        CURLOPT_COOKIEJAR => "$tmp/$client.cookies",
+    ]);
+    if ($method === 'POST') {
+        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
+    }
+    $response = (string)curl_exec($curl);
+    $headerSize = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    return [
+        'status' => curl_getinfo($curl, CURLINFO_RESPONSE_CODE),
+        'headers' => substr($response, 0, $headerSize),
+        'body' => substr($response, $headerSize),
+    ];
+}
+
+function csrf(string $client, string $path): string
+{
+    preg_match('/name="csrf" value="([0-9a-f]+)"/', http($client, 'GET', $path)['body'], $m);
+    return $m[1] ?? '';
+}
+
+/** Posts a form and returns the page it redirects to. */
+function submit(string $client, string $path, array $data): string
+{
+    $response = http($client, 'POST', $path, $data);
+    preg_match('/^Location: (\S+)/mi', $response['headers'], $m);
+    return isset($m[1]) ? http($client, 'GET', $m[1])['body'] : "status {$response['status']}";
+}
+
+function admin(array $data): string
+{
+    global $adminCsrf;
+    return submit('admin', '/admin', $data + ['csrf' => $adminCsrf]);
+}
+
+function reserve(int $wishId, string $name, string $email, array $extra = []): string
+{
+    global $relativeCsrf;
+    return submit('relative', '/reserve', $extra + ['csrf' => $relativeCsrf, 'wish_id' => $wishId, 'name' => $name, 'email' => $email]);
+}
+
+function q(string $sql, array $params = []): array
+{
+    global $app;
+    $pdo = new PDO("sqlite:$app/data/db.sqlite", null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function wish(int $id): array
+{
+    return q('SELECT * FROM wishes WHERE id = ?', [$id])[0] ?? [];
+}
+
+/** Returns and removes received mails: [['to' => [...], 'subject' => ..., 'body' => ...]]. */
+function take_mails(): array
+{
+    global $mailDir;
+    $mails = [];
+    foreach (glob("$mailDir/*.json") as $file) {
+        $raw = json_decode((string)file_get_contents($file), true);
+        unlink($file);
+        [$head, $body] = explode("\r\n\r\n", $raw['data'], 2);
+        $headers = iconv_mime_decode_headers($head, 0, 'UTF-8');
+        if (stripos($head, 'Content-Transfer-Encoding: quoted-printable') !== false) {
+            $body = quoted_printable_decode($body);
+        }
+        $mails[] = ['to' => $raw['to'], 'subject' => $headers['Subject'] ?? '', 'body' => $body];
+    }
+    return $mails;
+}
+
+function recipients_of(array $mails): array
+{
+    $to = array_merge(...array_column($mails, 'to'));
+    sort($to);
+    return $to;
+}
+
+// Setup
+copy_app($root, $app);
+mkdir($mailDir);
+$httpPort = free_port();
+$smtpPort = free_port();
+$base = "http://127.0.0.1:$httpPort";
+$accessKey = bin2hex(random_bytes(16));
+write_config($accessKey);
+file_put_contents("$tmp/sink.php", SINK);
+$processes[] = start([PHP_BINARY, "$tmp/sink.php", (string)$smtpPort, $mailDir], $tmp, "$tmp/sink.log");
+$processes[] = start([PHP_BINARY, '-d', 'opcache.enable_cli=0', '-S', "127.0.0.1:$httpPort", 'router.php'], $app, "$tmp/server.log");
+wait_for_port($smtpPort);
+wait_for_port($httpPort);
+
+// 3.3, 3.5, 3.6: headers, indexing, file protection
+$r = http('anonymous', 'GET', '/');
+check('CSP header', str_contains($r['headers'], "Content-Security-Policy: default-src 'none'; script-src 'nonce-")
+    && str_contains($r['headers'], "frame-ancestors 'none'"));
+check('nosniff, no-referrer, X-Robots-Tag headers', str_contains($r['headers'], 'X-Content-Type-Options: nosniff')
+    && str_contains($r['headers'], 'Referrer-Policy: no-referrer') && str_contains($r['headers'], 'X-Robots-Tag: noindex, nofollow'));
+check('no HSTS over HTTP', !str_contains($r['headers'], 'Strict-Transport-Security'));
+check('meta robots noindex', str_contains($r['body'], '<meta name="robots" content="noindex, nofollow">'));
+check('anonymous visitor gets key form and no session', str_contains($r['body'], 'name="key"')
+    && !str_contains($r['body'], 'x-data') && !str_contains($r['headers'], 'Set-Cookie'));
+check('robots.txt disallows all', http('anonymous', 'GET', '/robots.txt')['body'] === "User-agent: *\nDisallow: /\n");
+foreach (['/data/db.sqlite', '/db/schema.sql', '/docs/technical_specification.md', '/lib/PHPMailer/PHPMailer.php',
+    '/tests/smoke.php', '/.htaccess', '/config.php', '/bootstrap.php', '/db.php', '/router.php'] as $path) {
+    check("$path is forbidden", http('anonymous', 'GET', $path)['status'] === 403);
+}
+check('reserve without access is forbidden', http('anonymous', 'POST', '/reserve', ['wish_id' => 1])['status'] === 403);
+
+// 3.1, 3.2: access key and session
+$r = http('relative', 'GET', '/?key=wrong');
+check('wrong key is rejected', str_contains($r['body'], 'ungültig') && !str_contains($r['body'], 'x-data'));
+$r = http('relative', 'GET', '/?key=' . $accessKey);
+check('correct key redirects to /', $r['status'] === 303 && str_contains($r['headers'], "Location: /\r\n"));
+check('session cookie: 1 year, HttpOnly, SameSite=Lax, not Secure over HTTP',
+    preg_match('/^Set-Cookie: PHPSESSID=[^\r]*Max-Age=31536000[^\r]*; HttpOnly; SameSite=Lax\r$/mi', $r['headers']) === 1
+    && !preg_match('/^Set-Cookie:[^\r]*Secure/mi', $r['headers']));
+check('relative sees wishlist', str_contains(http('relative', 'GET', '/')['body'], 'x-data="wishlist"'));
+$relativeCsrf = csrf('relative', '/');
+
+// 7.2: admin authentication
+check('admin shows login form', str_contains(http('admin', 'GET', '/admin')['body'], 'name="password"'));
+$adminCsrf = csrf('admin', '/admin');
+check('admin login without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'login', 'password' => ADMIN_PASSWORD])['status'] === 400);
+check('wrong admin password is rejected', str_contains(admin(['action' => 'login', 'password' => 'wrong']), 'Falsches Passwort'));
+check('admin login works', str_contains(admin(['action' => 'login', 'password' => ADMIN_PASSWORD]), 'Neuer Wunsch'));
+check('admin session counts as access', str_contains(http('admin', 'GET', '/')['body'], 'x-data="wishlist"'));
+check('admin action without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'category_save', 'name' => 'X'])['status'] === 400);
+
+// 1.3: recipients and categories
+admin(['action' => 'recipient_save', 'name' => 'Kind']);
+admin(['action' => 'recipient_save', 'name' => 'Mama', 'email' => 'mama@example.com', 'is_parent' => 'on']);
+admin(['action' => 'recipient_save', 'name' => 'Papa', 'email' => 'papa@example.com', 'is_parent' => 'on']);
+admin(['action' => 'recipient_save', 'name' => 'Oma']);
+check('invalid recipient email is rejected', str_contains(admin(['action' => 'recipient_save', 'name' => 'X', 'email' => 'nope']), 'gültige E-Mail'));
+$ids = array_column(q('SELECT id, name FROM recipients'), 'id', 'name');
+check('recipients created', array_keys($ids) === ['Kind', 'Mama', 'Papa', 'Oma']);
+admin(['action' => 'recipient_save', 'id' => $ids['Oma'], 'name' => 'Grosi']);
+check('recipient renamed', q('SELECT name FROM recipients WHERE id = ?', [$ids['Oma']])[0]['name'] === 'Grosi');
+
+admin(['action' => 'category_save', 'name' => 'Testkategorie']);
+$testCategory = (int)q("SELECT id FROM categories WHERE name = 'Testkategorie'")[0]['id'];
+admin(['action' => 'category_save', 'id' => $testCategory, 'name' => 'Umbenannt']);
+check('category renamed', q('SELECT name FROM categories WHERE id = ?', [$testCategory])[0]['name'] === 'Umbenannt');
+admin(['action' => 'category_delete', 'id' => $testCategory]);
+check('unused category deleted', q('SELECT id FROM categories WHERE id = ?', [$testCategory]) === []);
+$toys = (int)q("SELECT id FROM categories WHERE name = 'Spielzeug & Spiele'")[0]['id'];
+$books = (int)q("SELECT id FROM categories WHERE name = 'Bücher & Medien'")[0]['id'];
+
+// 2.1: wishes
+$wishForm = ['action' => 'wish_save', 'category_id' => $toys, 'description' => '', 'price' => '', 'url' => '', 'image_url' => ''];
+check('wish without recipient is rejected', str_contains(admin($wishForm + ['title' => 'X']), 'mindestens einen Empfänger'));
+check('javascript: URL is rejected', str_contains(admin(['url' => 'javascript:alert(1)', 'title' => 'X', 'recipients' => [$ids['Kind']]] + $wishForm), 'http://'));
+check('unknown category is rejected', str_contains(admin(['category_id' => 999, 'title' => 'X', 'recipients' => [$ids['Kind']]] + $wishForm), 'Ungültige Kategorie'));
+check('no invalid wish was stored', q('SELECT id FROM wishes') === []);
+admin(['title' => 'Lego <b>Set</b>', 'recipients' => [$ids['Kind']], 'is_priority' => 'on', 'description' => "Grösse 134\nblau",
+    'price' => 'ca. 30 CHF', 'url' => 'https://shop.example.com/lego', 'image_url' => 'https://shop.example.com/lego.jpg'] + $wishForm);
+admin(['title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'category_id' => $books] + $wishForm);
+admin(['title' => 'Velo', 'recipients' => [$ids['Kind']]] + $wishForm);
+$wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
+[$lego, $book, $bike] = [$wishIds['Lego <b>Set</b>'], $wishIds['Buch für Mama'], $wishIds['Velo']];
+check('wishes created with recipients', count($wishIds) === 3 && count(q('SELECT * FROM wish_recipient')) === 3);
+
+// 2.2: wishlist page
+$page = http('relative', 'GET', '/')['body'];
+check('wish title is HTML-escaped', str_contains($page, 'Lego &lt;b&gt;Set&lt;/b&gt;') && !str_contains($page, '<b>Set</b>'));
+check('priority first, then newest first', strpos($page, 'Lego') < strpos($page, 'Velo') && strpos($page, 'Velo') < strpos($page, 'Buch für Mama'));
+check('wish data attributes for filtering', str_contains($page, 'data-category="' . $toys . '"') && str_contains($page, 'data-recipients="' . $ids['Kind'] . '"'));
+check('honeypot field in reservation form', str_contains($page, '<input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">'));
+
+// 2.3, 5: reservation
+$page = reserve($lego, 'Tante Erika', 'erika@example.com');
+check('reservation succeeds', str_contains($page, 'Der Wunsch ist für dich reserviert'));
+$w = wish($lego);
+check('reservation is stored', $w['is_reserved'] === 1 && $w['giver_name'] === 'Tante Erika' && $w['giver_email'] === 'erika@example.com'
+    && preg_match('/^[0-9a-f]{32}$/', (string)$w['cancel_token']) === 1 && $w['reserved_at'] !== null);
+$mails = take_mails();
+check('mails to giver and both parents', recipients_of($mails) === ['erika@example.com', 'mama@example.com', 'papa@example.com']);
+$giverMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['erika@example.com']))[0] ?? ['subject' => '', 'body' => ''];
+check('giver mail contains wish and cancel link', str_contains($giverMail['body'], "$base/cancel?token={$w['cancel_token']}")
+    && str_contains($giverMail['body'], 'Grösse 134') && str_contains($giverMail['subject'], 'Lego <b>Set</b>'));
+$parentMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['mama@example.com']))[0] ?? ['body' => ''];
+check('parent mail names giver, wish and recipients', str_contains($parentMail['body'], 'Tante Erika (erika@example.com) hat den Wunsch «Lego <b>Set</b>» für Kind reserviert'));
+
+check('reserving a reserved wish fails', str_contains(reserve($lego, 'Onkel Max', 'max@example.com'), 'nicht mehr verfügbar'));
+check('first reservation is kept, no mails', wish($lego)['giver_name'] === 'Tante Erika' && take_mails() === []);
+
+reserve($book, 'Onkel Max', 'max@example.com');
+check('parent own wish: no notification to that parent', recipients_of(take_mails()) === ['max@example.com', 'papa@example.com']);
+
+reserve($bike, 'Bot', 'bot@example.com', ['website_url' => 'https://spam.example.com']);
+check('honeypot blocks reservation silently', wish($bike)['is_reserved'] === 0 && take_mails() === []);
+check('invalid giver email is rejected', str_contains(reserve($bike, 'X', 'nope'), 'gültige E-Mail') && wish($bike)['is_reserved'] === 0);
+check('reservation without CSRF token fails', http('relative', 'POST', '/reserve', ['wish_id' => $bike, 'name' => 'X', 'email' => 'x@example.com'])['status'] === 400);
+
+$page = http('relative', 'GET', '/')['body'];
+check('reserved wishes at the bottom, giver hidden', strpos($page, 'Velo') < strpos($page, 'Lego')
+    && str_contains($page, 'Bereits reserviert') && !str_contains($page, 'Tante Erika') && !str_contains($page, 'erika@'));
+
+// 2.4: cancellation
+$token = $w['cancel_token'];
+$r = http('scanner', 'GET', "/cancel?token=$token");
+check('cancel GET shows confirmation, changes nothing', str_contains($r['body'], 'name="token" value="' . $token . '"') && wish($lego)['is_reserved'] === 1);
+check('cancel confirmation', str_contains(submit('giver', '/cancel', ['token' => $token]), 'Die Reservation ist aufgehoben.'));
+$w = wish($lego);
+check('reservation is removed', $w['is_reserved'] === 0 && $w['giver_name'] === null && $w['giver_email'] === null && $w['cancel_token'] === null && $w['reserved_at'] === null);
+$mails = take_mails();
+check('cancel notifies both parents', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
+    && str_contains($mails[0]['body'], 'Tante Erika (erika@example.com) hat die Reservation des Wunsches «Lego <b>Set</b>» für Kind aufgehoben'));
+check('used cancel link is invalid', str_contains(http('giver', 'GET', "/cancel?token=$token")['body'], 'nicht mehr gültig'));
+check('used cancel link cannot cancel again', str_contains(submit('giver', '/cancel', ['token' => $token]), 'nicht mehr gültig') && take_mails() === []);
+check('malformed cancel token is invalid', str_contains(http('giver', 'GET', '/cancel?token=abc')['body'], 'nicht mehr gültig'));
+
+// 2.5, 2.6: admin reservations and surprise protection
+admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'Grosi', 'giver_email' => '']);
+$w = wish($bike);
+check('manual reservation without email, token or mails', $w['is_reserved'] === 1 && $w['giver_name'] === 'Grosi'
+    && $w['giver_email'] === null && $w['cancel_token'] === null && take_mails() === []);
+check('manual reservation of reserved wish fails', str_contains(admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'X']), 'bereits reserviert'));
+$page = http('admin', 'GET', '/admin')['body'];
+$reservedAt = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y H:i');
+check('giver of child wish shown with local time', str_contains($page, "Reserviert von Grosi, $reservedAt, manuell"));
+check('giver of parent wish hidden in details', str_contains($page, '<details><summary>Reserviert (Schenkende anzeigen)</summary><p>Onkel Max (max@example.com)')
+    && !str_contains($page, 'Reserviert von Onkel Max'));
+admin(['action' => 'wish_unreserve', 'id' => $bike]);
+check('admin removes reservation without mails', wish($bike)['is_reserved'] === 0 && take_mails() === []);
+
+$tokenBefore = wish($book)['cancel_token'];
+admin(['id' => $book, 'title' => 'Krimi für Mama', 'recipients' => [$ids['Mama'], $ids['Papa']], 'category_id' => $books] + $wishForm);
+$w = wish($book);
+check('editing keeps reservation', $w['title'] === 'Krimi für Mama' && $w['is_reserved'] === 1 && $w['cancel_token'] === $tokenBefore
+    && count(q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book])) === 2);
+check('linked recipient cannot be deleted', str_contains(admin(['action' => 'recipient_delete', 'id' => $ids['Kind']]), 'kann nicht gelöscht'));
+admin(['action' => 'recipient_delete', 'id' => $ids['Oma']]);
+check('unlinked recipient deleted', count(q('SELECT * FROM recipients')) === 3);
+check('used category cannot be deleted', str_contains(admin(['action' => 'category_delete', 'id' => $toys]), 'kann nicht gelöscht'));
+admin(['action' => 'wish_delete', 'id' => $book]);
+check('reserved wish deleted without mails', wish($book) === [] && q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book]) === [] && take_mails() === []);
+
+// 7.2: logout keeps access key authorization, admin login expires after 4 hours
+$csrf = csrf('relative', '/');
+submit('relative', '/admin', ['csrf' => $csrf, 'action' => 'login', 'password' => ADMIN_PASSWORD]);
+check('logout ends admin session', str_contains(submit('relative', '/admin', ['csrf' => $csrf, 'action' => 'logout']), 'name="password"'));
+check('logout keeps key access', str_contains(http('relative', 'GET', '/')['body'], 'x-data="wishlist"'));
+preg_match('/PHPSESSID\s+(\S+)/', (string)file_get_contents("$tmp/admin.cookies"), $m);
+$sessionFile = "$app/data/sessions/sess_{$m[1]}";
+file_put_contents($sessionFile, preg_replace('/admin_since\|i:\d+;/', 'admin_since|i:' . (time() - 4 * 3600) . ';', (string)file_get_contents($sessionFile)));
+check('admin login expires after 4 hours', str_contains(http('admin', 'GET', '/admin')['body'], 'name="password"'));
+
+// 7.4: SMTP failure
+proc_terminate($processes[0]);
+proc_close(array_shift($processes));
+check('reservation is stored even if mail fails', str_contains(reserve($bike, 'Tante Erika', 'erika@example.com'), 'E-Mail-Versand ist fehlgeschlagen')
+    && wish($bike)['is_reserved'] === 1);
+
+// 3.1: changing the key revokes access
+$newKey = bin2hex(random_bytes(16));
+write_config($newKey);
+check('changed key revokes access', str_contains(http('relative', 'GET', '/')['body'], 'name="key"'));
+
+// 3.4: throttling after 10 failures (2 so far: wrong key, wrong password)
+for ($i = 0; $i < 8; $i++) {
+    http('throttled', 'GET', '/?key=wrong');
+}
+$r = http('throttled', 'GET', "/?key=$newKey");
+check('correct key is rejected after 10 failures', $r['status'] === 200 && str_contains($r['body'], 'Zu viele Fehlversuche'));
+$csrf = csrf('throttled', '/admin');
+check('admin login is rejected after 10 failures', str_contains(submit('throttled', '/admin', ['csrf' => $csrf, 'action' => 'login', 'password' => ADMIN_PASSWORD]), 'Zu viele Fehlversuche'));
+
+$serverLog = (string)file_get_contents("$tmp/server.log");
+check('no PHP warnings or errors', !preg_match('/PHP (Warning|Notice|Deprecated|Fatal|Parse)/', $serverLog));
+
+echo $failures === 0 ? "\nAll checks passed.\n" : "\n$failures check(s) failed.\n";
+exit($failures === 0 ? 0 : 1);
