@@ -23,12 +23,15 @@ if (isset($_GET['key'])) {
 if ($error !== '' || !has_access()) {
     page_start('Wunschliste');
     ?>
-<h1>Wunschliste</h1>
-<?php if ($error !== ''): ?><p class="flash warning" role="alert"><?= e($error) ?></p><?php endif; ?>
-<form method="get" action="/">
-    <label>Zugangsschlüssel <input type="password" name="key" required autocomplete="current-password"></label>
-    <button type="submit">Öffnen</button>
-</form>
+<article class="narrow">
+    <h1>Wunschliste</h1>
+    <p class="lead">Gib den Zugangsschlüssel ein, den du erhalten hast.</p>
+    <?php if ($error !== ''): ?><p class="flash warning" role="alert"><?= e($error) ?></p><?php endif; ?>
+    <form method="get" action="/">
+        <label>Zugangsschlüssel <input type="password" name="key" required autocomplete="current-password"></label>
+        <button type="submit">Öffnen</button>
+    </form>
+</article>
 <?php
     page_end();
     exit;
@@ -74,8 +77,10 @@ page_start('Wunschliste', $script);
 ?>
 <div x-data="wishlist">
 <h1>Wunschliste</h1>
+<p class="lead">Such dir einen Wunsch aus und reserviere ihn, damit nichts doppelt geschenkt wird.</p>
 
-<fieldset>
+<div class="filters">
+<fieldset class="chips">
     <legend>Für</legend>
     <?php foreach ($recipients as $recipient): ?>
         <label><input type="checkbox" value="<?= e($recipient['id']) ?>" x-model="recipients"> <?= e($recipient['name']) ?></label>
@@ -98,8 +103,9 @@ page_start('Wunschliste', $script);
         </select>
     </label>
 </div>
+</div>
 
-<div x-ref="list">
+<div class="wish-grid" x-ref="list">
 <?php foreach ($wishes as $wish): ?>
     <article class="wish<?= $wish['is_reserved'] ? ' reserved' : '' ?>"
         data-category="<?= e($wish['category_id']) ?>"
@@ -109,26 +115,32 @@ page_start('Wunschliste', $script);
         <?php if ($wish['image_url']): ?>
             <img src="<?= e($wish['image_url']) ?>" alt="" loading="lazy">
         <?php endif; ?>
-        <h2><?= $wish['is_priority'] ? '<mark>Favorit</mark> ' : '' ?><?= e($wish['title']) ?></h2>
-        <p><small>Für <?= e(implode(', ', array_column($wish['recipients'], 'name'))) ?> · <?= e($wish['category']) ?></small></p>
+        <div class="tags">
+            <?php if ($wish['is_priority']): ?><span class="badge favorite">★ Favorit</span><?php endif; ?>
+            <span class="badge"><?= e($wish['category']) ?></span>
+        </div>
+        <h2><?= e($wish['title']) ?></h2>
+        <p class="for">Für <?= e(implode(', ', array_column($wish['recipients'], 'name'))) ?></p>
         <?php if ($wish['description']): ?>
             <p class="pre-line"><?= e($wish['description']) ?></p>
         <?php endif; ?>
         <?php if ($wish['price']): ?>
-            <p>Preis: <?= e($wish['price']) ?></p>
+            <p>Preis: <strong><?= e($wish['price']) ?></strong></p>
         <?php endif; ?>
-        <?php if ($wish['url']): ?>
-            <p><a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer">Zum Shop</a></p>
-        <?php endif; ?>
-        <?php if ($wish['is_reserved']): ?>
-            <p><strong>Bereits reserviert</strong></p>
-        <?php else: ?>
-            <button type="button" data-id="<?= e($wish['id']) ?>" data-title="<?= e($wish['title']) ?>" @click="openReserve($event)">Reservieren</button>
-        <?php endif; ?>
+        <footer>
+            <?php if ($wish['url']): ?>
+                <a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer" role="button" class="secondary outline">Zum Shop ↗</a>
+            <?php endif; ?>
+            <?php if ($wish['is_reserved']): ?>
+                <span class="status">✓ Bereits reserviert</span>
+            <?php else: ?>
+                <button type="button" data-id="<?= e($wish['id']) ?>" data-title="<?= e($wish['title']) ?>" @click="openReserve($event)">Reservieren</button>
+            <?php endif; ?>
+        </footer>
     </article>
 <?php endforeach; ?>
 </div>
-<p x-show="noneShown">Keine passenden Wünsche gefunden.</p>
+<p class="empty" x-show="noneShown">Keine passenden Wünsche gefunden.</p>
 
 <dialog x-ref="dialog">
     <article>

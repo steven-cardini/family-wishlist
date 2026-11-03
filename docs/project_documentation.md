@@ -17,7 +17,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 
 - **Backend:** Native PHP 8.5 (no frameworks or compilation required)
 - **Database:** SQLite 3 (zero configuration, single file `data/db.sqlite`)
-- **Frontend:** HTML5, Pico.css v2 (CDN), Alpine.js CSP build (CDN)
+- **Frontend:** HTML5, Pico.css v2 (CDN) with own `style.css`, Alpine.js CSP build (CDN)
 - **Email Delivery:** PHPMailer 7 (committed, no Composer) via SMTP
 - **Hosting Requirements:** PHP 8.5 with PDO SQLite, Apache with `mod_rewrite`, HTTPS, app at the domain root.
 - **Language:** German UI and emails.
@@ -34,6 +34,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 ├── admin.php            # /admin   Password-protected management dashboard
 ├── reserve.php          # /reserve Handles reservations & emails
 ├── cancel.php           # /cancel  Handles token-based cancellations
+├── style.css            # Theme and layout on top of Pico.css
 ├── router.php           # Local dev only: URL rewrites for `php -S`
 ├── robots.txt           # Disallows search engine indexing
 ├── .htaccess            # URL rewrites & file access protection

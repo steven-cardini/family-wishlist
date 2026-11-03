@@ -239,14 +239,7 @@ function page_start(string $title, string $script = ''): void
 <meta name="robots" content="noindex, nofollow">
 <title>' . e($title) . '</title>
 <link rel="stylesheet" href="' . PICO_CSS . '" integrity="' . PICO_CSS_SRI . '" crossorigin="anonymous" nonce="' . $nonce . '">
-<style nonce="' . $nonce . '">
-.flash{padding:.75rem 1rem;border-radius:var(--pico-border-radius);color:#1b1b1b}
-.success{background:#c9f0d3}
-.warning{background:#fbd9b4}
-.reserved{opacity:.5}
-.wish img{display:block;max-width:100%;max-height:12rem;margin:0 auto 1rem;object-fit:contain}
-.pre-line{white-space:pre-line}
-</style>
+<link rel="stylesheet" href="/style.css?v=' . filemtime(__DIR__ . '/style.css') . '" nonce="' . $nonce . '">
 ';
     if ($script !== '') {
         echo '<script nonce="' . $nonce . '">' . $script . '</script>

@@ -201,13 +201,15 @@ page_start('Verwaltung');
 
 if (!is_admin()) {
     ?>
-<h1>Verwaltung</h1>
-<form method="post" action="/admin">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="login">
-    <label>Passwort <input type="password" name="password" required autocomplete="current-password"></label>
-    <button type="submit">Anmelden</button>
-</form>
+<article class="narrow">
+    <h1>Verwaltung</h1>
+    <form method="post" action="/admin">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="login">
+        <label>Passwort <input type="password" name="password" required autocomplete="current-password"></label>
+        <button type="submit">Anmelden</button>
+    </form>
+</article>
 <?php
     page_end();
     exit;
@@ -267,8 +269,12 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
     <h2>Wünsche</h2>
     <?php foreach ($wishes as $wish): ?>
         <article>
-            <h3><?= $wish['is_priority'] ? '<mark>Favorit</mark> ' : '' ?><?= e($wish['title']) ?></h3>
-            <p><small>Für <?= e(implode(', ', array_column($wish['recipients'], 'name'))) ?> · <?= e($wish['category']) ?></small></p>
+            <div class="tags">
+                <?php if ($wish['is_priority']): ?><span class="badge favorite">★ Favorit</span><?php endif; ?>
+                <span class="badge"><?= e($wish['category']) ?></span>
+            </div>
+            <h3><?= e($wish['title']) ?></h3>
+            <p class="for">Für <?= e(implode(', ', array_column($wish['recipients'], 'name'))) ?></p>
             <?php if ($wish['is_reserved']):
                 $giver = $wish['giver_name'] . ($wish['giver_email'] ? ' (' . $wish['giver_email'] . ')' : '')
                     . ', ' . format_date($wish['reserved_at']) . ($wish['cancel_token'] ? '' : ', manuell');

@@ -40,15 +40,17 @@ if ($isPost) {
 $hasFlash = isset($_SESSION['flash']);
 page_start('Reservation aufheben');
 ?>
-<h1>Reservation aufheben</h1>
-<?php if ($wish): ?>
-    <p>Möchtest du deine Reservation für «<?= e($wish['title']) ?>» aufheben?</p>
-    <form method="post" action="/cancel">
-        <input type="hidden" name="token" value="<?= e($token) ?>">
-        <button type="submit">Reservation aufheben</button>
-    </form>
-<?php elseif (!$hasFlash): ?>
-    <p class="flash warning">Dieser Link ist nicht mehr gültig.</p>
-<?php endif; ?>
+<article class="narrow">
+    <h1>Reservation aufheben</h1>
+    <?php if ($wish): ?>
+        <p>Möchtest du deine Reservation für «<?= e($wish['title']) ?>» aufheben?</p>
+        <form method="post" action="/cancel">
+            <input type="hidden" name="token" value="<?= e($token) ?>">
+            <button type="submit">Reservation aufheben</button>
+        </form>
+    <?php elseif (!$hasFlash): ?>
+        <p class="flash warning">Dieser Link ist nicht mehr gültig.</p>
+    <?php endif; ?>
+</article>
 <?php
 page_end();

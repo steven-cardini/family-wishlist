@@ -1,0 +1,289 @@
+/* Theme on top of Pico.css v2 (selectors match Pico's light/dark blocks) */
+:root {
+  --pico-border-radius: 0.6rem;
+  --heading-font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --card-radius: 1rem;
+}
+
+@media not all and (prefers-color-scheme: dark) {
+  :root:not([data-theme=dark]) {
+    --pico-background-color: #fbf8f6;
+    --pico-card-background-color: #fff;
+    --pico-card-sectioning-background-color: #fcf8f9;
+    --pico-card-box-shadow: 0 1px 2px rgb(90 40 60 / 6%), 0 8px 24px rgb(90 40 60 / 7%);
+    --pico-text-selection-color: rgb(176 42 91 / 20%);
+    --pico-primary: #b02a5b;
+    --pico-primary-background: #b02a5b;
+    --pico-primary-underline: rgb(176 42 91 / 50%);
+    --pico-primary-hover: #8c1f47;
+    --pico-primary-hover-background: #8c1f47;
+    --pico-primary-focus: rgb(176 42 91 / 35%);
+    --pico-primary-inverse: #fff;
+    --card-hover-shadow: 0 2px 4px rgb(90 40 60 / 8%), 0 16px 36px rgb(90 40 60 / 12%);
+    --glow: rgb(176 42 91 / 12%);
+    --badge-background: #f9e7ee;
+    --badge-color: #8c1f47;
+    --favorite-background: #fff0c2;
+    --favorite-color: #6e4a00;
+  }
+}
+
+@media only screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --pico-card-background-color: #1b1f29;
+    --pico-text-selection-color: rgb(240 140 176 / 25%);
+    --pico-primary: #f08cb0;
+    --pico-primary-background: #c0396b;
+    --pico-primary-underline: rgb(240 140 176 / 50%);
+    --pico-primary-hover: #f6b0c9;
+    --pico-primary-hover-background: #d24b7c;
+    --pico-primary-focus: rgb(240 140 176 / 35%);
+    --pico-primary-inverse: #fff;
+    --card-hover-shadow: 0 16px 36px rgb(0 0 0 / 35%);
+    --glow: rgb(240 140 176 / 10%);
+    --badge-background: #3a2230;
+    --badge-color: #f6b0c9;
+    --favorite-background: #3b3115;
+    --favorite-color: #f5d27a;
+  }
+}
+
+body {
+  background: radial-gradient(ellipse 70rem 26rem at 50% -8rem, var(--glow), transparent 70%) no-repeat;
+}
+
+body > main {
+  padding-top: 2.5rem;
+  padding-bottom: 4rem;
+}
+
+h1, h2, h3 {
+  font-family: var(--heading-font);
+  letter-spacing: -0.015em;
+}
+
+/* Gift icon */
+h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+h1::before {
+  content: "";
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.8rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='9' rx='1.5'/%3E%3Crect x='3' y='7.5' width='18' height='3.5' rx='1'/%3E%3Cpath d='M12 7.5V20M12 7.5C10.5 4.5 7 4 7 6s2.5 1.5 5 1.5zm0 0c1.5-3 5-3.5 5-1.5s-2.5 1.5-5 1.5z'/%3E%3C/svg%3E") center / 60% no-repeat,
+    linear-gradient(135deg, #e0608c, #a1214f);
+  box-shadow: 0 6px 16px rgb(176 42 91 / 30%);
+}
+
+.lead {
+  margin-bottom: 2rem;
+  color: var(--pico-muted-color);
+  font-size: 1.05rem;
+}
+
+section > h2 {
+  margin-top: 2.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.narrow {
+  max-width: 28rem;
+  margin: 2rem auto;
+}
+
+.flash {
+  padding: 0.8rem 1rem;
+  border-left: 0.3rem solid;
+  border-radius: var(--pico-border-radius);
+  color: #1f1f1f;
+}
+
+.success {
+  border-color: #2e9a5b;
+  background: #dcf3e4;
+}
+
+.warning {
+  border-color: #dc7a1c;
+  background: #fde8d2;
+}
+
+.pre-line {
+  white-space: pre-line;
+}
+
+[type=checkbox]:not([role=switch]) {
+  border-radius: 0.3rem;
+}
+
+dialog small {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* Filters */
+.filters {
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.25rem 0.25rem;
+  border-radius: var(--card-radius);
+  background: var(--pico-card-background-color);
+  box-shadow: var(--pico-card-box-shadow);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chips label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 2rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chips label:hover {
+  border-color: var(--pico-primary-border);
+}
+
+.chips input[type=checkbox] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chips label:has(:checked) {
+  border-color: var(--pico-primary-background);
+  background: var(--pico-primary-background);
+  color: var(--pico-primary-inverse);
+}
+
+.chips label:has(:checked)::before {
+  content: "✓";
+}
+
+.chips label:has(:focus-visible) {
+  box-shadow: 0 0 0 0.2rem var(--pico-primary-focus);
+}
+
+/* Wish cards */
+.wish-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 1.25rem;
+}
+
+.wish {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--card-radius);
+}
+
+.wish > img {
+  display: block;
+  width: calc(100% + 2 * var(--pico-block-spacing-horizontal));
+  max-width: none;
+  aspect-ratio: 3 / 2;
+  margin: calc(-1 * var(--pico-block-spacing-vertical)) calc(-1 * var(--pico-block-spacing-horizontal)) var(--pico-block-spacing-vertical);
+  padding: 1rem;
+  border-bottom: 1px solid var(--pico-card-border-color);
+  background: #fff;
+  object-fit: contain;
+}
+
+.wish h2 {
+  margin-bottom: 0.25rem;
+  font-size: 1.2rem;
+}
+
+.wish > footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.wish > footer > * {
+  flex: 1;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.wish.reserved {
+  opacity: 0.6;
+}
+
+.wish.reserved > img {
+  filter: grayscale(1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wish {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .wish:not(.reserved):hover {
+    transform: translateY(-3px);
+    box-shadow: var(--card-hover-shadow);
+  }
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 2rem;
+  background: var(--badge-background);
+  color: var(--badge-color);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.badge.favorite {
+  background: var(--favorite-background);
+  color: var(--favorite-color);
+}
+
+.for,
+.status {
+  color: var(--pico-muted-color);
+}
+
+.status {
+  font-weight: 600;
+  text-align: center;
+}
+
+.empty {
+  padding: 2.5rem 1rem;
+  border: 2px dashed var(--pico-muted-border-color);
+  border-radius: var(--card-radius);
+  color: var(--pico-muted-color);
+  text-align: center;
+}
