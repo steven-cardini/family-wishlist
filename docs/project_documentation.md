@@ -49,39 +49,9 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 1. **No Sensitive Data Committed:** Secrets, database files, and personal or deployment details (domain, hosting provider) live only in `config.php` and `docs/private_deployment.md`, both excluded via `.gitignore`.
 2. **Easy Self-Hosting & Reusability:** Anyone can fork this repository, copy `config.example.php` to `config.php`, configure their SMTP and secret keys, and run their own family wishlist in minutes.
 
-## Quick Start (Setup & Deployment)
+## Setup & Deployment
 
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/your-username/family-wishlist.git
-   cd family-wishlist
-   ```
-
-2. **Create Local Configuration:**
-   Copy the example configuration file:
-   ```bash
-   cp config.example.php config.php
-   ```
-
-3. **Configure Settings:**
-   Open `config.php` and set:
-   - `base_url`: Public URL of the app (used in email links).
-   - `access_key`: Long random secret for the relatives' link (`/?key=...`).
-   - `admin_password_hash`: Hash of the admin password, generated with
-     `php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'`
-   - `smtp`: Your web host's SMTP server settings for outgoing emails.
-
-4. **Run Locally (optional):**
-   ```bash
-   php -S localhost:8000 router.php
-   php tests/smoke.php   # run the automated tests
-   ```
-
-5. **Deploy:**
-   - Upload all files to your PHP web host directory (e.g., `/html` or `/httpdocs`).
-   - Ensure `config.php` exists on the server with your production credentials.
-   - The database (`data/db.sqlite`) is created automatically on the first visit. To reset it, delete that file.
-   - Optional: keep your own deployment notes in `docs/private_deployment.md` (ignored by Git).
+See [README.md](../README.md#setup--deployment).
 
 ---
 *For in-depth architectural details, data schema definitions, and logic flows, see [technical_specification.md](technical_specification.md).*

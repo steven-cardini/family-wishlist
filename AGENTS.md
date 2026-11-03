@@ -7,7 +7,8 @@ Do not duplicate code or schemas. Read the dedicated single-source files in `doc
 - **Configuration Array Layout (SSOT):** Read `config.example.php`
 - **Business Logic & Surprise Protection Matrix:** See `docs/technical_specification.md` (Section 5)
 - **Workflows, Auth & Security (Admin, Key Auth, Sessions, CSRF, Honeypot):** See `docs/technical_specification.md` (Sections 2, 3 & 7)
-- **Project Structure & Hosting:** See `docs/project_documentation.md`
+- **Project Structure:** See `docs/project_documentation.md`
+- **Setup & Deployment (config.php values, database, .htaccess):** See `README.md`
 - **Private Deployment Details (not committed):** Read `docs/private_deployment.md` if present
 
 ## 2. Quick Start & Execution Commands

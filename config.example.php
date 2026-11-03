@@ -11,9 +11,11 @@ return [
     'timezone' => 'Europe/Zurich',
 
     // Secret for the relatives' link: https://example.com/?key=...
+    // Generate: php -r 'echo bin2hex(random_bytes(24)), "\n";'
     'access_key' => 'change-me',
 
-    // Generate: php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'
+    // Generate: php -r 'echo password_hash(rtrim(fgets(STDIN)), PASSWORD_DEFAULT), "\n";'
+    // then type the password and press Enter. Keep the single quotes (the hash contains "$").
     'admin_password_hash' => '',
 
     'smtp' => [
