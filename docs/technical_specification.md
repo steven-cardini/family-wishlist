@@ -75,6 +75,7 @@ Each wish entry contains:
 
 ### 2.8 General Behavior
 - Form submissions redirect back with a success or warning message (Post/Redirect/Get).
+- In `/admin`, existing recipients and categories are shown read-only. Their edit form opens via "Bearbeiten"; new entries are added in a separate form below.
 - Editing a reserved wish keeps the reservation. Deleting a reserved wish sends no emails.
 - An invalid or already used cancel token shows "link no longer valid".
 - Images that fail to load are hidden.

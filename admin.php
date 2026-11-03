@@ -21,6 +21,42 @@ function count_rows(string $sql, int $id): int
     return (int)$stmt->fetchColumn();
 }
 
+function recipient_form(array $recipient): void
+{
+    ?>
+    <form method="post" action="/admin">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= e($recipient['id']) ?>">
+        <label>Name <input type="text" name="name" value="<?= e($recipient['name']) ?>" required></label>
+        <label>E-Mail (optional) <input type="email" name="email" value="<?= e($recipient['email']) ?>"></label>
+        <label><input type="checkbox" name="is_parent" role="switch"<?= $recipient['is_parent'] ? ' checked' : '' ?>> Elternteil (erhält Benachrichtigungen)</label>
+        <div role="group">
+            <button type="submit" name="action" value="recipient_save"><?= $recipient['id'] ? 'Speichern' : 'Hinzufügen' ?></button>
+            <?php if ($recipient['id']): ?>
+                <button type="submit" name="action" value="recipient_delete" class="secondary" formnovalidate>Löschen</button>
+            <?php endif; ?>
+        </div>
+    </form>
+    <?php
+}
+
+function category_form(array $category): void
+{
+    ?>
+    <form method="post" action="/admin">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= e($category['id']) ?>">
+        <input type="text" name="name" value="<?= e($category['name']) ?>" aria-label="Name" required>
+        <div role="group">
+            <button type="submit" name="action" value="category_save"><?= $category['id'] ? 'Speichern' : 'Hinzufügen' ?></button>
+            <?php if ($category['id']): ?>
+                <button type="submit" name="action" value="category_delete" class="secondary" formnovalidate>Löschen</button>
+            <?php endif; ?>
+        </div>
+    </form>
+    <?php
+}
+
 /** Returns [flash type, message]. */
 function handle_action(string $action, int $id): array
 {
@@ -279,41 +315,33 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
 
 <section>
     <h2>Empfänger</h2>
-    <?php foreach ([...$recipients, ['id' => 0, 'name' => '', 'email' => '', 'is_parent' => 0]] as $recipient): ?>
-        <form method="post" action="/admin">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= e($recipient['id']) ?>">
-            <fieldset>
-                <legend><?= $recipient['id'] ? e($recipient['name']) : 'Neuer Empfänger' ?></legend>
-                <label>Name <input type="text" name="name" value="<?= e($recipient['name']) ?>" required></label>
-                <label>E-Mail (optional) <input type="email" name="email" value="<?= e($recipient['email']) ?>"></label>
-                <label><input type="checkbox" name="is_parent" role="switch"<?= $recipient['is_parent'] ? ' checked' : '' ?>> Elternteil (erhält Benachrichtigungen)</label>
-            </fieldset>
-            <div role="group">
-                <button type="submit" name="action" value="recipient_save"><?= $recipient['id'] ? 'Speichern' : 'Hinzufügen' ?></button>
-                <?php if ($recipient['id']): ?>
-                    <button type="submit" name="action" value="recipient_delete" class="secondary" formnovalidate>Löschen</button>
-                <?php endif; ?>
-            </div>
-        </form>
+    <?php foreach ($recipients as $recipient): ?>
+        <article>
+            <p><strong><?= e($recipient['name']) ?></strong><br>
+                <small><?= e($recipient['email'] ?: 'Keine E-Mail') ?><?= $recipient['is_parent'] ? ' · Elternteil' : '' ?></small></p>
+            <details>
+                <summary role="button" class="outline">Bearbeiten</summary>
+                <?php recipient_form($recipient); ?>
+            </details>
+        </article>
     <?php endforeach; ?>
+    <h3>Neuer Empfänger</h3>
+    <?php recipient_form(['id' => 0, 'name' => '', 'email' => '', 'is_parent' => 0]); ?>
 </section>
 
 <section>
     <h2>Kategorien</h2>
-    <?php foreach ([...$categories, ['id' => 0, 'name' => '']] as $category): ?>
-        <form method="post" action="/admin">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= e($category['id']) ?>">
-            <input type="text" name="name" value="<?= e($category['name']) ?>" placeholder="Neue Kategorie" aria-label="Kategorie" required>
-            <div role="group">
-                <button type="submit" name="action" value="category_save"><?= $category['id'] ? 'Speichern' : 'Hinzufügen' ?></button>
-                <?php if ($category['id']): ?>
-                    <button type="submit" name="action" value="category_delete" class="secondary" formnovalidate>Löschen</button>
-                <?php endif; ?>
-            </div>
-        </form>
+    <?php foreach ($categories as $category): ?>
+        <article>
+            <p><strong><?= e($category['name']) ?></strong></p>
+            <details>
+                <summary role="button" class="outline">Bearbeiten</summary>
+                <?php category_form($category); ?>
+            </details>
+        </article>
     <?php endforeach; ?>
+    <h3>Neue Kategorie</h3>
+    <?php category_form(['id' => 0, 'name' => '']); ?>
 </section>
 <?php
 page_end();
