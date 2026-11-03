@@ -1,0 +1,19 @@
+# Local config, secrets and private deployment notes
+config.php
+docs/private_deployment.md
+
+# Runtime data: SQLite database & sessions (auto-created)
+data/
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# OS / editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
