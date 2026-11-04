@@ -4,8 +4,8 @@ A small, self-hosted web app for sharing family wishlists. Relatives browse wish
 
 ## How it works
 
-- **Parents** maintain recipients, categories and wishes in a password-protected admin area.
-- **Relatives** open a private link, filter wishes by person, category or availability, and reserve a gift with just their name and email.
+- **Parents** maintain recipients and wishes in a password-protected admin area.
+- **Relatives** open a private link, filter wishes by person or availability, and reserve a gift with just their name and email.
 - **Reservations** trigger a confirmation email with a cancellation link. Parents are notified of reservations and cancellations, except for wishes that are their own, so surprises stay intact.
 
 ## Built with
@@ -24,9 +24,10 @@ Copy `config.example.php` to `config.php`, set the values below and put it next 
 | --- | --- |
 | `base_url` | Public URL without trailing slash, e.g. `https://wishlist.example.com`. Used for the cancellation links in emails. |
 | `timezone` | Timezone for displayed dates, e.g. `Europe/Zurich`. |
+| `site_title` | Heading of the wishlist, e.g. `Wunschzettel der Familie Muster`. Also the sender name and signature of emails. |
 | `access_key` | Long random secret: `php -r 'echo bin2hex(random_bytes(24)), "\n";'`. Share `https://wishlist.example.com/?key=<access_key>` with relatives. Changing it revokes all existing access. |
 | `admin_password_hash` | Run `php -r 'echo password_hash(rtrim(fgets(STDIN)), PASSWORD_DEFAULT), "\n";'`, type the admin password, press Enter. Keep the single quotes (the hash contains `$`). |
-| `smtp` | Mailbox used for sending: `host`, `port` + `encryption` (`587` + `'tls'` or `465` + `'ssl'`), `username` (usually the full email address), `password`, `from_email` (the same mailbox, to avoid spam filters), `from_name`. |
+| `smtp` | Mailbox used for sending: `host`, `port` + `encryption` (`587` + `'tls'` or `465` + `'ssl'`), `username` (usually the full email address), `password`, `from_email` (the same mailbox, to avoid spam filters). |
 
 ### 2. Database
 

@@ -41,7 +41,7 @@ $details = implode("\n", array_filter([
     $wish['title'],
     'Für: ' . $for,
     $wish['description'],
-    $wish['price'] ? 'Preis: ' . $wish['price'] : '',
+    $wish['price'] ? 'Preis: ca. ' . $wish['price'] : '',
     $wish['url'],
 ]));
 

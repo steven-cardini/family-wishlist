@@ -10,6 +10,9 @@ return [
     // Used to display dates (stored in UTC)
     'timezone' => 'Europe/Zurich',
 
+    // Shown as page heading and as sender name and signature of emails
+    'site_title' => 'Wunschzettel',
+
     // Secret for the relatives' link: https://example.com/?key=...
     // Generate: php -r 'echo bin2hex(random_bytes(24)), "\n";'
     'access_key' => 'change-me',
@@ -25,6 +28,5 @@ return [
         'username' => 'wishlist@example.com',
         'password' => '',
         'from_email' => 'wishlist@example.com',
-        'from_name' => 'Familien-Wunschliste',
     ],
 ];

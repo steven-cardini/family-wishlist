@@ -5,7 +5,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 ## Key Features
 
 - **Public Wishlist:** Clean view of gifts requested by family members (`recipients`).
-- **Filtering:** Filter wishes by recipient, category, and reservation status (available vs. reserved).
+- **Filtering:** Filter wishes by recipient and reservation status (available vs. reserved).
 - **Frictionless Reservations:** Relatives (givers) can reserve gifts without registering or creating an account.
 - **Easy Cancellation:** Confirmation emails include a unique cancellation link to undo a reservation.
 - **Surprise Protection:** Parents are emailed about reservations and cancellations, except for wishes that belong to them. In the admin dashboard, givers of parents' wishes are hidden until clicked.
@@ -39,7 +39,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 ├── robots.txt           # Disallows search engine indexing
 ├── .htaccess            # URL rewrites & file access protection
 ├── data/                # SQLite database & sessions (ignored by Git, auto-created)
-├── db/schema.sql        # Database schema & seed data
+├── db/schema.sql        # Database schema
 ├── lib/PHPMailer/       # PHPMailer source files (third-party, LGPL)
 ├── tests/smoke.php      # Automated end-to-end tests
 └── docs/                # Documentation (private_deployment.md: own deployment notes, ignored by Git)

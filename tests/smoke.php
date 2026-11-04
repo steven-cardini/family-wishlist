@@ -5,6 +5,7 @@ declare(strict_types=1);
 // End-to-end tests, see docs/technical_specification.md, 8
 
 const ADMIN_PASSWORD = 'test-admin-password';
+const SITE_TITLE = 'Wunschzettel der Familie Test';
 const SINK = <<<'PHP'
 <?php
 declare(strict_types=1);
@@ -127,6 +128,7 @@ function write_config(string $accessKey): void
     $config = [
         'base_url' => $base,
         'timezone' => 'Europe/Zurich',
+        'site_title' => SITE_TITLE,
         'access_key' => $accessKey,
         'admin_password_hash' => password_hash(ADMIN_PASSWORD, PASSWORD_DEFAULT),
         'smtp' => [
@@ -136,7 +138,6 @@ function write_config(string $accessKey): void
             'username' => '',
             'password' => '',
             'from_email' => 'wishlist@example.com',
-            'from_name' => 'Familien-Wunschliste',
         ],
     ];
     file_put_contents("$app/config.php", "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($config, true) . ";\n");
@@ -214,7 +215,7 @@ function wish(int $id): array
     return q('SELECT * FROM wishes WHERE id = ?', [$id])[0] ?? [];
 }
 
-/** Returns and removes received mails: [['to' => [...], 'subject' => ..., 'body' => ...]]. */
+/** Returns and removes received mails: [['to' => [...], 'from' => ..., 'subject' => ..., 'body' => ...]]. */
 function take_mails(): array
 {
     global $mailDir;
@@ -227,7 +228,7 @@ function take_mails(): array
         if (stripos($head, 'Content-Transfer-Encoding: quoted-printable') !== false) {
             $body = quoted_printable_decode($body);
         }
-        $mails[] = ['to' => $raw['to'], 'subject' => $headers['Subject'] ?? '', 'body' => $body];
+        $mails[] = ['to' => $raw['to'], 'from' => $headers['From'] ?? '', 'subject' => $headers['Subject'] ?? '', 'body' => $body];
     }
     return $mails;
 }
@@ -261,6 +262,7 @@ check('nosniff, no-referrer, X-Robots-Tag headers', str_contains($r['headers'], 
     && str_contains($r['headers'], 'Referrer-Policy: no-referrer') && str_contains($r['headers'], 'X-Robots-Tag: noindex, nofollow'));
 check('no HSTS over HTTP', !str_contains($r['headers'], 'Strict-Transport-Security'));
 check('meta robots noindex', str_contains($r['body'], '<meta name="robots" content="noindex, nofollow">'));
+check('site title on key form', str_contains($r['body'], '<title>' . SITE_TITLE . '</title>') && str_contains($r['body'], '<h1>' . SITE_TITLE . '</h1>'));
 check('anonymous visitor gets key form and no session', str_contains($r['body'], 'name="key"')
     && !str_contains($r['body'], 'x-data') && !str_contains($r['headers'], 'Set-Cookie'));
 check('robots.txt disallows all', http('anonymous', 'GET', '/robots.txt')['body'] === "User-agent: *\nDisallow: /\n");
@@ -288,47 +290,56 @@ check('admin login without CSRF token fails', http('admin', 'POST', '/admin', ['
 check('wrong admin password is rejected', str_contains(admin(['action' => 'login', 'password' => 'wrong']), 'Falsches Passwort'));
 check('admin login works', str_contains(admin(['action' => 'login', 'password' => ADMIN_PASSWORD]), 'Neuer Wunsch'));
 check('admin session counts as access', str_contains(http('admin', 'GET', '/')['body'], 'x-data="wishlist"'));
-check('admin action without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'category_save', 'name' => 'X'])['status'] === 400);
+check('admin action without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'recipient_save', 'name' => 'X', 'color' => 'blue'])['status'] === 400);
 
-// 1.3: recipients and categories
-admin(['action' => 'recipient_save', 'name' => 'Kind']);
-admin(['action' => 'recipient_save', 'name' => 'Mama', 'email' => 'mama@example.com', 'is_parent' => 'on']);
-admin(['action' => 'recipient_save', 'name' => 'Papa', 'email' => 'papa@example.com', 'is_parent' => 'on']);
-admin(['action' => 'recipient_save', 'name' => 'Oma']);
-check('invalid recipient email is rejected', str_contains(admin(['action' => 'recipient_save', 'name' => 'X', 'email' => 'nope']), 'gültige E-Mail'));
+// 1.1: recipients
+check('new recipient form preselects first color', str_contains(http('admin', 'GET', '/admin')['body'], 'value="blue" checked'));
+admin(['action' => 'recipient_save', 'name' => 'Kind', 'color' => 'blue']);
+admin(['action' => 'recipient_save', 'name' => 'Mama', 'email' => 'mama@example.com', 'is_parent' => 'on', 'color' => 'green']);
+admin(['action' => 'recipient_save', 'name' => 'Papa', 'email' => 'papa@example.com', 'is_parent' => 'on', 'color' => 'orange']);
+admin(['action' => 'recipient_save', 'name' => 'Oma', 'color' => 'blue']);
+check('invalid recipient email is rejected', str_contains(admin(['action' => 'recipient_save', 'name' => 'X', 'email' => 'nope', 'color' => 'blue']), 'gültige E-Mail'));
+check('invalid recipient color is rejected', str_contains(admin(['action' => 'recipient_save', 'name' => 'X', 'color' => 'x"><b>']), 'Bitte wähle eine Farbe'));
 $ids = array_column(q('SELECT id, name FROM recipients'), 'id', 'name');
 check('recipients created', array_keys($ids) === ['Kind', 'Mama', 'Papa', 'Oma']);
-admin(['action' => 'recipient_save', 'id' => $ids['Oma'], 'name' => 'Grosi']);
-check('recipient renamed', q('SELECT name FROM recipients WHERE id = ?', [$ids['Oma']])[0]['name'] === 'Grosi');
-
-admin(['action' => 'category_save', 'name' => 'Testkategorie']);
-$testCategory = (int)q("SELECT id FROM categories WHERE name = 'Testkategorie'")[0]['id'];
-admin(['action' => 'category_save', 'id' => $testCategory, 'name' => 'Umbenannt']);
-check('category renamed', q('SELECT name FROM categories WHERE id = ?', [$testCategory])[0]['name'] === 'Umbenannt');
-admin(['action' => 'category_delete', 'id' => $testCategory]);
-check('unused category deleted', q('SELECT id FROM categories WHERE id = ?', [$testCategory]) === []);
-$toys = (int)q("SELECT id FROM categories WHERE name = 'Spielzeug & Spiele'")[0]['id'];
-$books = (int)q("SELECT id FROM categories WHERE name = 'Bücher & Medien'")[0]['id'];
+admin(['action' => 'recipient_save', 'id' => $ids['Oma'], 'name' => 'Grosi', 'color' => 'red']);
+check('recipient renamed and recolored', q('SELECT name, color FROM recipients WHERE id = ?', [$ids['Oma']])[0] === ['name' => 'Grosi', 'color' => 'red']);
+$page = http('admin', 'GET', '/admin')['body'];
+check('new recipient form preselects least used color', str_contains($page, 'value="violet" checked'));
+check('recipient delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="recipient_delete"'));
 
 // 2.1: wishes
-$wishForm = ['action' => 'wish_save', 'category_id' => $toys, 'description' => '', 'price' => '', 'url' => '', 'image_url' => ''];
+$wishForm = ['action' => 'wish_save', 'description' => '', 'price' => '', 'url' => '', 'image_url' => ''];
 check('wish without recipient is rejected', str_contains(admin($wishForm + ['title' => 'X']), 'mindestens einen Empfänger'));
 check('javascript: URL is rejected', str_contains(admin(['url' => 'javascript:alert(1)', 'title' => 'X', 'recipients' => [$ids['Kind']]] + $wishForm), 'http://'));
-check('unknown category is rejected', str_contains(admin(['category_id' => 999, 'title' => 'X', 'recipients' => [$ids['Kind']]] + $wishForm), 'Ungültige Kategorie'));
+check('unknown recipient is rejected', str_contains(admin(['title' => 'X', 'recipients' => [999]] + $wishForm), 'Ungültiger Wunsch oder Empfänger'));
 check('no invalid wish was stored', q('SELECT id FROM wishes') === []);
 admin(['title' => 'Lego <b>Set</b>', 'recipients' => [$ids['Kind']], 'is_priority' => 'on', 'description' => "Grösse 134\nblau",
     'price' => 'ca. 30 CHF', 'url' => 'https://shop.example.com/lego', 'image_url' => 'https://shop.example.com/lego.jpg'] + $wishForm);
-admin(['title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'category_id' => $books] + $wishForm);
+admin(['title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'Ca.20 CHF'] + $wishForm);
 admin(['title' => 'Velo', 'recipients' => [$ids['Kind']]] + $wishForm);
 $wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
 [$lego, $book, $bike] = [$wishIds['Lego <b>Set</b>'], $wishIds['Buch für Mama'], $wishIds['Velo']];
 check('wishes created with recipients', count($wishIds) === 3 && count(q('SELECT * FROM wish_recipient')) === 3);
+check('leading "ca." is removed from price', wish($lego)['price'] === '30 CHF' && wish($book)['price'] === '20 CHF');
+check('optional fields stored as NULL', wish($bike)['description'] === null && wish($bike)['price'] === null
+    && wish($bike)['url'] === null && wish($bike)['image_url'] === null);
 
 // 2.2: wishlist page
 $page = http('relative', 'GET', '/')['body'];
+check('site title on wishlist', str_contains($page, '<title>' . SITE_TITLE . '</title>') && str_contains($page, '<h1>' . SITE_TITLE . '</h1>'));
 check('wish title is HTML-escaped', str_contains($page, 'Lego &lt;b&gt;Set&lt;/b&gt;') && !str_contains($page, '<b>Set</b>'));
 check('priority first, then newest first', strpos($page, 'Lego') < strpos($page, 'Velo') && strpos($page, 'Velo') < strpos($page, 'Buch für Mama'));
-check('wish data attributes for filtering', str_contains($page, 'data-category="' . $toys . '"') && str_contains($page, 'data-recipients="' . $ids['Kind'] . '"'));
+check('wish data attributes for filtering', str_contains($page, 'data-recipients="' . $ids['Kind'] . '"'));
+check('filter lists only recipients with wishes', str_contains($page, 'value="' . $ids['Kind'] . '" x-model')
+    && str_contains($page, 'value="' . $ids['Mama'] . '" x-model') && !str_contains($page, 'value="' . $ids['Papa'] . '" x-model')
+    && !str_contains($page, 'value="' . $ids['Oma'] . '" x-model'));
+check('filter chip in recipient color', str_contains($page, '<label class="recipient color-green"><input type="checkbox" value="' . $ids['Mama'] . '"'));
+check('recipient tags in color', str_contains($page, '<p class="recipients">Für <span class="recipient color-blue">Kind</span></p>'));
+check('priority wish shown as "Grosser Wunsch"', substr_count($page, '★ Grosser Wunsch') === 1 && str_contains($page, 'class="wish priority"'));
+check('price shown with "ca."', str_contains($page, 'Preis: <strong>ca. 30 CHF</strong>') && !str_contains($page, 'ca. ca.'));
+check('gift placeholder without image', substr_count($page, '<div class="picture">') === 3 && substr_count($page, '<img ') === 1);
+check('no category left', stripos($page, 'categor') === false && stripos($page, 'Kategorie') === false);
 check('honeypot field in reservation form', str_contains($page, '<input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">'));
 
 // 2.3, 5: reservation
@@ -339,9 +350,11 @@ check('reservation is stored', $w['is_reserved'] === 1 && $w['giver_name'] === '
     && preg_match('/^[0-9a-f]{32}$/', (string)$w['cancel_token']) === 1 && $w['reserved_at'] !== null);
 $mails = take_mails();
 check('mails to giver and both parents', recipients_of($mails) === ['erika@example.com', 'mama@example.com', 'papa@example.com']);
-$giverMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['erika@example.com']))[0] ?? ['subject' => '', 'body' => ''];
+$giverMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['erika@example.com']))[0] ?? ['from' => '', 'subject' => '', 'body' => ''];
+check('site title as sender name and signature', $giverMail['from'] === SITE_TITLE . ' <wishlist@example.com>'
+    && str_ends_with(rtrim($giverMail['body']), SITE_TITLE));
 check('giver mail contains wish and cancel link', str_contains($giverMail['body'], "$base/cancel?token={$w['cancel_token']}")
-    && str_contains($giverMail['body'], 'Grösse 134') && str_contains($giverMail['subject'], 'Lego <b>Set</b>'));
+    && str_contains($giverMail['body'], 'Grösse 134') && str_contains($giverMail['body'], 'Preis: ca. 30 CHF') && str_contains($giverMail['subject'], 'Lego <b>Set</b>'));
 $parentMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['mama@example.com']))[0] ?? ['body' => ''];
 check('parent mail names giver, wish and recipients', str_contains($parentMail['body'], 'Tante Erika (erika@example.com) hat den Wunsch «Lego <b>Set</b>» für Kind reserviert'));
 
@@ -383,20 +396,21 @@ check('manual reservation of reserved wish fails', str_contains(admin(['action' 
 $page = http('admin', 'GET', '/admin')['body'];
 $reservedAt = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y H:i');
 check('giver of child wish shown with local time', str_contains($page, "Reserviert von Grosi, $reservedAt, manuell"));
+check('reservation removal needs confirmation', str_contains($page, '<details class="confirm"><summary>Reservation entfernen</summary><button type="submit" name="action" value="wish_unreserve"'));
+check('wish delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="wish_delete"'));
 check('giver of parent wish hidden in details', str_contains($page, '<details><summary>Reserviert (Schenkende anzeigen)</summary><p>Onkel Max (max@example.com)')
     && !str_contains($page, 'Reserviert von Onkel Max'));
 admin(['action' => 'wish_unreserve', 'id' => $bike]);
 check('admin removes reservation without mails', wish($bike)['is_reserved'] === 0 && take_mails() === []);
 
 $tokenBefore = wish($book)['cancel_token'];
-admin(['id' => $book, 'title' => 'Krimi für Mama', 'recipients' => [$ids['Mama'], $ids['Papa']], 'category_id' => $books] + $wishForm);
+admin(['id' => $book, 'title' => 'Krimi für Mama', 'recipients' => [$ids['Mama'], $ids['Papa']]] + $wishForm);
 $w = wish($book);
 check('editing keeps reservation', $w['title'] === 'Krimi für Mama' && $w['is_reserved'] === 1 && $w['cancel_token'] === $tokenBefore
     && count(q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book])) === 2);
 check('linked recipient cannot be deleted', str_contains(admin(['action' => 'recipient_delete', 'id' => $ids['Kind']]), 'kann nicht gelöscht'));
 admin(['action' => 'recipient_delete', 'id' => $ids['Oma']]);
 check('unlinked recipient deleted', count(q('SELECT * FROM recipients')) === 3);
-check('used category cannot be deleted', str_contains(admin(['action' => 'category_delete', 'id' => $toys]), 'kann nicht gelöscht'));
 admin(['action' => 'wish_delete', 'id' => $book]);
 check('reserved wish deleted without mails', wish($book) === [] && q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book]) === [] && take_mails() === []);
 

@@ -20,11 +20,12 @@ if (isset($_GET['key'])) {
     }
 }
 
+$title = (string)config('site_title');
 if ($error !== '' || !has_access()) {
-    page_start('Wunschliste');
+    page_start($title);
     ?>
 <article class="narrow">
-    <h1>Wunschliste</h1>
+    <h1><?= e($title) ?></h1>
     <p class="lead">Gib den Zugangsschlüssel ein, den du erhalten hast.</p>
     <?php if ($error !== ''): ?><p class="flash warning" role="alert"><?= e($error) ?></p><?php endif; ?>
     <form method="get" action="/">
@@ -37,8 +38,8 @@ if ($error !== '' || !has_access()) {
     exit;
 }
 
-$recipients = db()->query('SELECT id, name FROM recipients ORDER BY name')->fetchAll();
-$categories = db()->query('SELECT id, name FROM categories ORDER BY name')->fetchAll();
+$recipients = db()->query('SELECT id, name, color FROM recipients WHERE id IN (SELECT recipient_id FROM wish_recipient)
+    ORDER BY name')->fetchAll();
 $wishes = load_wishes();
 
 $script = <<<'JS'
@@ -48,14 +49,12 @@ document.addEventListener('error', (event) => {
 document.addEventListener('alpine:init', () => {
     Alpine.data('wishlist', () => ({
         recipients: [],
-        category: '',
         status: 'available',
         wishId: '',
         wishTitle: '',
         shows(el) {
             const data = el.dataset;
             return (this.status === 'all' || (this.status === 'reserved') === (data.reserved === '1'))
-                && (this.category === '' || this.category === data.category)
                 && (this.recipients.length === 0 || data.recipients.split(',').some((id) => this.recipients.includes(id)));
         },
         get noneShown() {
@@ -73,59 +72,49 @@ document.addEventListener('alpine:init', () => {
 });
 JS;
 
-page_start('Wunschliste', $script);
+page_start($title, $script);
 ?>
 <div x-data="wishlist">
-<h1>Wunschliste</h1>
+<h1><?= e($title) ?></h1>
 <p class="lead">Such dir einen Wunsch aus und reserviere ihn, damit nichts doppelt geschenkt wird.</p>
 
 <div class="filters">
+<?php if ($recipients): ?>
 <fieldset class="chips">
     <legend>Für</legend>
     <?php foreach ($recipients as $recipient): ?>
-        <label><input type="checkbox" value="<?= e($recipient['id']) ?>" x-model="recipients"> <?= e($recipient['name']) ?></label>
+        <label class="recipient color-<?= e($recipient['color']) ?>"><input type="checkbox" value="<?= e($recipient['id']) ?>" x-model="recipients"> <?= e($recipient['name']) ?></label>
     <?php endforeach; ?>
 </fieldset>
-<div class="grid">
-    <label>Kategorie
-        <select x-model="category">
-            <option value="">Alle Kategorien</option>
-            <?php foreach ($categories as $category): ?>
-                <option value="<?= e($category['id']) ?>"><?= e($category['name']) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-    <label>Status
-        <select x-model="status">
-            <option value="available">Nur verfügbare</option>
-            <option value="reserved">Nur reservierte</option>
-            <option value="all">Alle</option>
-        </select>
-    </label>
-</div>
+<?php endif; ?>
+<label>Status
+    <select x-model="status">
+        <option value="available">Nur verfügbare</option>
+        <option value="reserved">Nur reservierte</option>
+        <option value="all">Alle</option>
+    </select>
+</label>
 </div>
 
 <div class="wish-grid" x-ref="list">
 <?php foreach ($wishes as $wish): ?>
-    <article class="wish<?= $wish['is_reserved'] ? ' reserved' : '' ?>"
-        data-category="<?= e($wish['category_id']) ?>"
+    <article class="wish<?= $wish['is_reserved'] ? ' reserved' : '' ?><?= $wish['is_priority'] ? ' priority' : '' ?>"
         data-recipients="<?= e(implode(',', array_column($wish['recipients'], 'id'))) ?>"
         data-reserved="<?= e($wish['is_reserved']) ?>"
         x-show="shows($el)">
-        <?php if ($wish['image_url']): ?>
-            <img src="<?= e($wish['image_url']) ?>" alt="" loading="lazy">
-        <?php endif; ?>
-        <div class="tags">
-            <?php if ($wish['is_priority']): ?><span class="badge favorite">★ Favorit</span><?php endif; ?>
-            <span class="badge"><?= e($wish['category']) ?></span>
+        <div class="picture">
+            <?php if ($wish['image_url']): ?>
+                <img src="<?= e($wish['image_url']) ?>" alt="" loading="lazy">
+            <?php endif; ?>
+            <?php if ($wish['is_priority']): ?><span class="badge priority">★ Grosser Wunsch</span><?php endif; ?>
         </div>
+        <?= recipient_tags($wish['recipients']) ?>
         <h2><?= e($wish['title']) ?></h2>
-        <p class="for">Für <?= e(implode(', ', array_column($wish['recipients'], 'name'))) ?></p>
         <?php if ($wish['description']): ?>
             <p class="pre-line"><?= e($wish['description']) ?></p>
         <?php endif; ?>
         <?php if ($wish['price']): ?>
-            <p>Preis: <strong><?= e($wish['price']) ?></strong></p>
+            <p>Preis: <strong>ca. <?= e($wish['price']) ?></strong></p>
         <?php endif; ?>
         <footer>
             <?php if ($wish['url']): ?>

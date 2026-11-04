@@ -19,6 +19,17 @@ const PICO_CSS = 'https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.
 const PICO_CSS_SRI = 'sha384-L1dWfspMTHU/ApYnFiMz2QID/PlP1xCW9visvBdbEkOLkSSWsP6ZJWhPw6apiXxU';
 const ALPINE_JS = 'https://cdn.jsdelivr.net/npm/@alpinejs/csp@3.17.4/dist/cdn.min.js';
 const ALPINE_JS_SRI = 'sha384-DQd2BgbtOQrdt/JbxcM+wSb8poOHwsG5W2jbbXskj85r7SWPwqpBFgGGR1devM/D';
+// Recipient colors (key => label), styled in style.css
+const RECIPIENT_COLORS = [
+    'blue' => 'Blau',
+    'green' => 'Grün',
+    'orange' => 'Orange',
+    'violet' => 'Violett',
+    'teal' => 'Türkis',
+    'red' => 'Rot',
+    'pink' => 'Pink',
+    'brown' => 'Braun',
+];
 // Hash of the honeypot's inline style "display:none;"
 const HONEYPOT_STYLE_HASH = 'sha256-0EZqoz+oBhx7gF4nvY2bSqoGyy4zLjNF+SDQXGp/ZrY=';
 
@@ -159,22 +170,30 @@ function format_date(?string $utc): string
         ->format('d.m.Y H:i');
 }
 
-/** Wishes in display order, each with 'recipients' (id, name, is_parent). */
+/** Wishes in display order, each with 'recipients' (id, name, is_parent, color). */
 function load_wishes(): array
 {
     $wishes = [];
-    $rows = db()->query('SELECT w.*, c.name AS category FROM wishes w JOIN categories c ON c.id = w.category_id
-        ORDER BY w.is_reserved, w.is_priority DESC, w.created_at DESC, w.id DESC');
+    $rows = db()->query('SELECT * FROM wishes ORDER BY is_reserved, is_priority DESC, created_at DESC, id DESC');
     foreach ($rows as $wish) {
         $wish['recipients'] = [];
         $wishes[$wish['id']] = $wish;
     }
-    $rows = db()->query('SELECT wr.wish_id, r.id, r.name, r.is_parent FROM wish_recipient wr
+    $rows = db()->query('SELECT wr.wish_id, r.id, r.name, r.is_parent, r.color FROM wish_recipient wr
         JOIN recipients r ON r.id = wr.recipient_id ORDER BY r.name');
     foreach ($rows as $recipient) {
         $wishes[$recipient['wish_id']]['recipients'][] = $recipient;
     }
     return $wishes;
+}
+
+function recipient_tags(array $recipients): string
+{
+    $html = '';
+    foreach ($recipients as $recipient) {
+        $html .= ' <span class="recipient color-' . e($recipient['color']) . '">' . e($recipient['name']) . '</span>';
+    }
+    return '<p class="recipients">Für' . $html . '</p>';
 }
 
 function recipient_names(int $wishId): string
@@ -203,10 +222,10 @@ function send_mail(string $to, string $subject, string $body): bool
         $mail->Password = $smtp['password'];
         $mail->Timeout = 15;
         $mail->CharSet = PHPMailer::CHARSET_UTF8;
-        $mail->setFrom($smtp['from_email'], $smtp['from_name']);
+        $mail->setFrom($smtp['from_email'], (string)config('site_title'));
         $mail->addAddress($to);
         $mail->Subject = $subject;
-        $mail->Body = $body . "\n\n" . $smtp['from_name'] . "\n";
+        $mail->Body = $body . "\n\n" . config('site_title') . "\n";
         $mail->send();
         return true;
     } catch (Throwable $e) {

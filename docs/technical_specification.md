@@ -10,7 +10,7 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 
 ### 1.1 Recipients (`recipients`)
 - Family members (e.g., children, parents) for whom wishes are created.
-- Stored with a name, an optional email address and an `is_parent` flag.
+- Stored with a name, an optional email address, an `is_parent` flag and a color (fixed palette `RECIPIENT_COLORS` in `bootstrap.php`; the least used color is preselected for new recipients).
 - Parents (`is_parent = 1`) with an email address receive notifications (see Section 5).
 
 ### 1.2 Givers
@@ -20,7 +20,7 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 
 ### 1.3 Administrators (Parents)
 - Access `/admin`, authenticated via a central admin password (stored as hash in `config.php`).
-- Full CRUD permissions for recipients, categories, and wishes.
+- Full CRUD permissions for recipients and wishes.
 - Ability to manually mark wishes as reserved on behalf of others (e.g., phone calls from grandparents).
 
 ---
@@ -30,21 +30,19 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 ### 2.1 Wish Attributes
 Each wish entry contains:
 - **Title:** Name of the item (required).
-- **Description:** Additional details like size, color, condition, or specifics (e.g., "Grösse 134", "Second-hand OK").
-- **Target Price:** Freeform string (e.g., "ca. 30 CHF").
-- **Webshop URL:** Direct link to the online store item (`http(s)://` only).
-- **Image URL:** Direct link to an image hosted on the webshop (`http(s)://` only).
-- **Priority Flag (`is_priority`):** Highlights favorite / high-priority items.
-- **Category:** Exactly one category (required). Admins use "Sonstiges" if none fits.
-- **Recipients:** At least one family member, via junction table (`wish_recipient`).
+- **Description (optional):** Additional details like size, color, condition, or specifics (e.g., "Grösse 134", "Second-hand OK").
+- **Price (optional):** Freeform string (e.g., "30 CHF", "20–30 CHF"), always displayed with a "ca." prefix. A leading "ca." entered by the admin is removed on save.
+- **Webshop URL (optional):** Direct link to the online store item (`http(s)://` only).
+- **Image URL (optional):** Direct link to an image hosted on the webshop (`http(s)://` only). Without an image, or if it fails to load, a gift icon is shown.
+- **Priority Flag (`is_priority`):** Shown as "Grosser Wunsch" (badge and highlighted card).
+- **Recipients:** At least one family member, via junction table (`wish_recipient`), shown as name tags in the recipient's color.
 
 ### 2.2 Frontend & Filtering (`/`)
 - Filtering happens client-side (Alpine.js).
 - **Filter Controls:**
-  - **Recipient(s):** Checkbox filter; a wish matches if it belongs to any selected recipient (none selected: all).
-  - **Category:** Dropdown filter.
+  - **Recipient(s):** Checkbox filter, listing only recipients linked to at least one wish; a wish matches if it belongs to any selected recipient (none selected: all).
   - **Status:** "Available only" (default), "Reserved only", "Show all".
-- Sort order: priority wishes first, then newest first.
+- Sort order: available before reserved; within each, priority wishes first, then newest first.
 - In "Show all", reserved wishes are rendered at the bottom, grayed out ("Bereits reserviert"). Giver details are never shown.
 
 ### 2.3 Reservation Workflow (`/reserve`)
@@ -65,7 +63,7 @@ Each wish entry contains:
 ### 2.5 Admin Manual Reservation
 - Giver name is required, email is optional.
 - No emails are sent and no `cancel_token` is created.
-- Admins can also remove any reservation (no emails sent).
+- Admins can also remove any reservation (no emails sent, confirmation required, see 2.8).
 
 ### 2.6 Admin Surprise Protection
 - In `/admin`, giver details of a wish linked to any recipient with `is_parent = 1` are hidden by default and shown only after an explicit click (`<details>` element).
@@ -75,10 +73,10 @@ Each wish entry contains:
 
 ### 2.8 General Behavior
 - Form submissions redirect back with a success or warning message (Post/Redirect/Get).
-- In `/admin`, existing recipients and categories are shown read-only. Their edit form opens via "Bearbeiten"; new entries are added in a separate form below.
+- In `/admin`, existing recipients are shown read-only. Their edit form opens via "Bearbeiten"; new entries are added in a separate form below.
+- In `/admin`, deleting (wishes, recipients) and "Reservation entfernen" need a second click ("Wirklich ...") to prevent accidental changes.
 - Editing a reserved wish keeps the reservation. Deleting a reserved wish sends no emails.
 - An invalid or already used cancel token shows "link no longer valid".
-- Images that fail to load are hidden.
 - Dates are stored in UTC and displayed in the `timezone` from `config.php`.
 
 ---
@@ -136,13 +134,12 @@ CDN assets are version-pinned and loaded with Subresource Integrity (`integrity`
 
 ## 4. Data Model Schema (Single Source of Truth)
 
-The SQLite database schema, foreign key relations, and initial category seeds are defined exclusively in:
+The SQLite database schema and foreign key relations are defined exclusively in:
 👉 **`db/schema.sql`**
 
 ### Key Entities & Relations
 - `recipients`: Family members who receive gifts. A recipient still linked to a wish cannot be deleted.
-- `categories`: Gift classifications. A category still used by a wish cannot be deleted.
-- `wishes`: Main wishlist items (belongs to exactly 1 `category`).
+- `wishes`: Main wishlist items.
 - `wish_recipient`: Junction table mapping multi-recipient relationships to `wishes`.
 - `login_failures`: Failed login attempts for throttling.
 
@@ -177,7 +174,7 @@ Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp
 ## 7. Implementation Details & Edge Cases
 
 ### 7.1 Configuration Loading
-`config.php` returns a key-value PHP array. Refer to `config.example.php` for expected structure. `base_url` is used for links in emails (never derived from the request's `Host` header).
+`config.php` returns a key-value PHP array. Refer to `config.example.php` for expected structure. `base_url` is used for links in emails (never derived from the request's `Host` header). `site_title` is the wishlist heading and browser title, and the sender name and signature of emails.
 
 ### 7.2 Admin Authentication Flow (`/admin`)
 - Accessing `/admin` validates `!empty($_SESSION['is_admin'])`.
@@ -189,7 +186,7 @@ Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp
 ### 7.3 Database Initialization (`db.php`)
 - `db.php` opens the SQLite PDO connection to `data/db.sqlite` (creating `data/` if missing) and sets `PRAGMA foreign_keys = ON` on every connection.
 - If `PRAGMA user_version` is `0`, `db/schema.sql` is executed once inside a `BEGIN IMMEDIATE` transaction (version is re-checked inside the transaction). The schema sets `user_version = 1`.
-- **Reset:** Delete `data/db.sqlite` (e.g., via FTP). It is recreated with seed data on the next request.
+- **Reset:** Delete `data/db.sqlite` (e.g., via FTP). It is recreated empty on the next request.
 - Future schema changes: add migration steps keyed on `user_version`.
 
 ### 7.4 Email Error Handling

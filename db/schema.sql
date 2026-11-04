@@ -5,19 +5,13 @@ CREATE TABLE recipients (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 name TEXT NOT NULL,
 email TEXT,
-is_parent INTEGER NOT NULL DEFAULT 0 -- Parents with email get reservation notifications
-);
-
--- Gift categories
-CREATE TABLE categories (
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-name TEXT NOT NULL
+is_parent INTEGER NOT NULL DEFAULT 0, -- Parents with email get reservation notifications
+color TEXT NOT NULL -- Key of RECIPIENT_COLORS in bootstrap.php
 );
 
 -- Wishlist entries
 CREATE TABLE wishes (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
-category_id INTEGER NOT NULL,
 title TEXT NOT NULL,
 description TEXT,
 price TEXT,
@@ -29,8 +23,7 @@ giver_name TEXT,
 giver_email TEXT,
 reserved_at DATETIME,
 cancel_token TEXT UNIQUE,
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Many-to-Many: Wishes <-> Recipients
@@ -47,16 +40,5 @@ CREATE TABLE login_failures (
 ip TEXT NOT NULL,
 failed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- Initial Category Seeding
-INSERT INTO categories (name) VALUES
-('Erlebnisse & Gutscheine'),
-('Spielzeug & Spiele'),
-('Bücher & Medien'),
-('Basteln & Hobbys'),
-('Sport & Outdoor'),
-('Kleidung & Accessoires'),
-('Wohnen & Zimmer'),
-('Sonstiges');
 
 PRAGMA user_version = 1;
