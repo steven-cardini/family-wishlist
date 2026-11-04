@@ -144,6 +144,17 @@ page_start($title, $script);
 <h1><?= e($title) ?></h1>
 <p class="lead">Such dir einen Wunsch aus und reserviere ihn, damit nichts doppelt geschenkt wird.</p>
 
+<details class="guide">
+    <summary>Anleitung: So reservierst du einen Wunsch</summary>
+    <ol>
+        <li>Schau dir die Wünsche unten an. Drückst du bei «Für» auf einen Namen, siehst du nur die Wünsche dieser Person.</li>
+        <li>Drücke beim passenden Wunsch auf «Reservieren».</li>
+        <li>Gib deinen Namen ein und drücke nochmals auf «Reservieren». Fertig!</li>
+    </ol>
+    <p>Reservieren ist kein Kauf: Du besorgst das Geschenk selbst, z.B. über «Zum Shop». Die anderen sehen nur, dass der Wunsch vergeben ist.</p>
+    <p>Aus Versehen reserviert? Nutze den Link in der Bestätigungs-E-Mail oder melde dich bei den Eltern.</p>
+</details>
+
 <div class="filters">
 <?php if ($recipients): ?>
 <fieldset class="chips">

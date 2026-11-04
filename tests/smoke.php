@@ -293,6 +293,8 @@ check('session cookie: 1 year, HttpOnly, SameSite=Lax, not Secure over HTTP',
     && !preg_match('/^Set-Cookie:[^\r]*Secure/mi', $r['headers']));
 $page = http('relative', 'GET', '/')['body'];
 check('relative sees wishlist', str_contains($page, 'x-data="wishlist"'));
+$guide = strpos($page, '<summary>Anleitung: So reservierst du einen Wunsch</summary>');
+check('guide above filters', $guide !== false && $guide < strpos($page, 'class="filters"'));
 check('share button with access link', str_contains($page, 'data-url="' . $base . '/?key=' . $accessKey . '" @click="share($event)">Link teilen</button>'));
 $relativeCsrf = csrf('relative', '/');
 

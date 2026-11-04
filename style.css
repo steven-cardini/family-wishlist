@@ -129,6 +129,23 @@ dialog small {
   margin-bottom: 1rem;
 }
 
+.guide {
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--card-radius);
+  background: var(--pico-card-background-color);
+  box-shadow: var(--pico-card-box-shadow);
+}
+
+.guide > summary:not([role]),
+.guide[open] > summary:not([role]):not(:focus) {
+  color: var(--pico-primary);
+  font-weight: 600;
+}
+
+.guide p:last-child {
+  margin-bottom: 0.25rem;
+}
+
 /* Filters */
 .filters {
   margin-bottom: 1rem;

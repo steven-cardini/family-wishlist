@@ -38,6 +38,7 @@ Each wish entry contains:
 - **Recipients:** At least one family member, via junction table (`wish_recipient`), shown as name tags in the recipient's color.
 
 ### 2.2 Frontend & Filtering (`/`)
+- A collapsed "Anleitung" (`<details>`) above the filters explains reserving in simple words for inexperienced users, including that reserving is not buying.
 - Filtering happens client-side (Alpine.js).
 - **Filter Controls:**
   - **Recipient(s):** Checkbox filter, listing only recipients linked to at least one wish; a wish matches if it belongs to any selected recipient (none selected: all).
