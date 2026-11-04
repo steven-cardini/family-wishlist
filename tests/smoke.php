@@ -352,6 +352,14 @@ check('wishes created with recipients', count($wishIds) === 3 && count(q('SELECT
 check('leading "ca." is removed from price', wish($lego)['price'] === '30 CHF' && wish($book)['price'] === '20 CHF');
 check('optional fields stored as NULL', wish($bike)['description'] === null && wish($bike)['price'] === null
     && wish($bike)['url'] === null && wish($bike)['image_url'] === null);
+admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
+    'url' => 'https://www.amazon.de/dp/B01/ref=sr_1_3?crid=X&keywords=velo&qid=1&th=1&sr=8-3&psc=1#info',
+    'image_url' => 'https://img.example.com/velo.jpg?utm_source=a&w=800&UTM_Medium=b&gclid=c&sr=1&srsltid=d'] + $wishForm);
+check('tracking parameters are removed from URLs', wish($bike)['url'] === 'https://www.amazon.de/dp/B01/ref=sr_1_3?th=1&psc=1#info'
+    && wish($bike)['image_url'] === 'https://img.example.com/velo.jpg?w=800&sr=1');
+admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']], 'url' => 'https://shop.example.com/velo?utm_source=a&fbclid=b'] + $wishForm);
+check('URL without remaining parameters has no "?"', wish($bike)['url'] === 'https://shop.example.com/velo');
+admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']]] + $wishForm);
 
 // 2.2: wishlist page
 $page = http('relative', 'GET', '/')['body'];

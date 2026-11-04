@@ -4,6 +4,26 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+const TRACKING_PARAMS = '/^(utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|gad_source|gad_campaignid|msclkid|yclid|twclid'
+    . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid)$/i';
+const AMAZON_TRACKING_PARAMS = '/^(ref|ref_|pd_rd_.*|pf_rd_.*|content-id|crid|dib|dib_tag|keywords|qid|sprefix|sr'
+    . '|_encoding|tag|linkcode|linkid|ascsubtag)$/i';
+
+/** Removes tracking query parameters (docs/technical_specification.md, 2.1). */
+function clean_url(string $url): string
+{
+    if (preg_match('/^([^?#]*)\?([^#]*)(.*)$/s', $url, $m) !== 1) {
+        return $url;
+    }
+    $isAmazon = preg_match('/(^|\.)amazon\.[a-z.]+$/i', (string)parse_url($url, PHP_URL_HOST)) === 1;
+    $params = array_filter(explode('&', $m[2]), function (string $param) use ($isAmazon): bool {
+        $name = rawurldecode(explode('=', $param, 2)[0]);
+        return $name !== '' && preg_match(TRACKING_PARAMS, $name) !== 1
+            && !($isAmazon && preg_match(AMAZON_TRACKING_PARAMS, $name) === 1);
+    });
+    return $m[1] . ($params === [] ? '' : '?' . implode('&', $params)) . $m[3];
+}
+
 function valid_url(string $url): bool
 {
     return $url === '' || (preg_match('#^https?://#i', $url) === 1 && filter_var($url, FILTER_VALIDATE_URL) !== false);
@@ -80,8 +100,8 @@ function handle_action(string $action, int $id): array
 
         case 'wish_save':
             $title = post('title');
-            $url = post('url');
-            $imageUrl = post('image_url');
+            $url = clean_url(post('url'));
+            $imageUrl = clean_url(post('image_url'));
             $recipientIds = array_unique(array_map('intval', array_filter((array)($_POST['recipients'] ?? []), 'is_string')));
             if ($title === '') {
                 return ['warning', 'Bitte gib einen Titel an.'];
