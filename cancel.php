@@ -15,8 +15,8 @@ if (is_string($token) && preg_match('/^[0-9a-f]{32}$/', $token)) {
 
 if ($isPost) {
     if ($wish) {
-        $stmt = db()->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, reserved_at = NULL,
-            cancel_token = NULL WHERE id = ? AND cancel_token = ?');
+        $stmt = db()->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, giver_note = NULL,
+            reserved_at = NULL, cancel_token = NULL WHERE id = ? AND cancel_token = ?');
         $stmt->execute([$wish['id'], $token]);
         if ($stmt->rowCount() === 1) {
             $giver = $wish['giver_name'];

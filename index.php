@@ -121,7 +121,7 @@ page_start($title, $script);
                 <a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer" role="button" class="secondary outline">Zum Shop ↗</a>
             <?php endif; ?>
             <?php if ($wish['is_reserved']): ?>
-                <span class="status">✓ Bereits reserviert</span>
+                <span class="status">✓ Reserviert am <?= e(format_date($wish['reserved_at'], 'd.m.Y')) ?></span>
             <?php else: ?>
                 <button type="button" data-id="<?= e($wish['id']) ?>" data-title="<?= e($wish['title']) ?>" @click="openReserve($event)">Reservieren</button>
             <?php endif; ?>
@@ -142,8 +142,9 @@ page_start($title, $script);
             <input type="hidden" name="wish_id" :value="wishId">
             <input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">
             <label>Dein Name <input type="text" name="name" required autocomplete="name"></label>
-            <label>Deine E-Mail <input type="email" name="email" required autocomplete="email"></label>
-            <small>Du erhältst eine Bestätigung mit einem Link, um die Reservation aufzuheben.</small>
+            <label>Deine E-Mail (optional) <input type="email" name="email" autocomplete="email"></label>
+            <small>Mit E-Mail erhältst du eine Bestätigung mit Link, falls du es dir anders überlegst. Ohne E-Mail können nur die Eltern die Reservation aufheben.</small>
+            <label>Notiz an die Eltern (optional) <textarea name="note" rows="2" maxlength="<?= GIVER_NOTE_MAX_LENGTH ?>" placeholder="z.B. Wir bringen es an die Weihnachtsfeier mit."></textarea></label>
             <button type="submit">Reservieren</button>
         </form>
     </article>

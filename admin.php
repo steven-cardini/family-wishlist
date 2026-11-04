@@ -9,11 +9,6 @@ function valid_url(string $url): bool
     return $url === '' || (preg_match('#^https?://#i', $url) === 1 && filter_var($url, FILTER_VALIDATE_URL) !== false);
 }
 
-function valid_optional_email(string $email): bool
-{
-    return $email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
-}
-
 function count_rows(string $sql, int $id): int
 {
     $stmt = db()->prepare($sql);
@@ -131,19 +126,23 @@ function handle_action(string $action, int $id): array
         case 'wish_reserve':
             $name = post('giver_name');
             $email = post('giver_email');
+            $note = post_giver_note('giver_note');
             if ($name === '' || !valid_optional_email($email)) {
                 return ['warning', 'Bitte gib einen Namen und optional eine gültige E-Mail-Adresse an.'];
             }
-            $stmt = $db->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, reserved_at = ?,
-                cancel_token = NULL WHERE id = ? AND is_reserved = 0');
-            $stmt->execute([$name, $email ?: null, gmdate('Y-m-d H:i:s'), $id]);
+            if ($note === false) {
+                return ['warning', 'Die Notiz darf höchstens ' . GIVER_NOTE_MAX_LENGTH . ' Zeichen lang sein.'];
+            }
+            $stmt = $db->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, giver_note = ?,
+                reserved_at = ?, cancel_token = NULL WHERE id = ? AND is_reserved = 0');
+            $stmt->execute([$name, $email ?: null, $note !== '' ? $note : null, gmdate('Y-m-d H:i:s'), $id]);
             return $stmt->rowCount() === 1
                 ? ['success', 'Wunsch reserviert.']
                 : ['warning', 'Dieser Wunsch ist bereits reserviert.'];
 
         case 'wish_unreserve':
-            $db->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, reserved_at = NULL,
-                cancel_token = NULL WHERE id = ?')->execute([$id]);
+            $db->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, giver_note = NULL,
+                reserved_at = NULL, cancel_token = NULL WHERE id = ?')->execute([$id]);
             return ['success', 'Reservation entfernt.'];
 
         case 'recipient_save':
@@ -269,12 +268,13 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
             <?= recipient_tags($wish['recipients']) ?>
             <?php if ($wish['is_reserved']):
                 $giver = $wish['giver_name'] . ($wish['giver_email'] ? ' (' . $wish['giver_email'] . ')' : '')
-                    . ', ' . format_date($wish['reserved_at']) . ($wish['cancel_token'] ? '' : ', manuell');
+                    . ', ' . format_date($wish['reserved_at'])
+                    . ($wish['giver_note'] !== null ? "\nNotiz: " . $wish['giver_note'] : '');
                 ?>
                 <?php if (in_array(1, array_column($wish['recipients'], 'is_parent'), true)): ?>
-                    <details><summary>Reserviert (Schenkende anzeigen)</summary><p><?= e($giver) ?></p></details>
+                    <details><summary>Reserviert (Schenkende anzeigen)</summary><p class="pre-line"><?= e($giver) ?></p></details>
                 <?php else: ?>
-                    <p>Reserviert von <?= e($giver) ?></p>
+                    <p class="pre-line">Reserviert von <?= e($giver) ?></p>
                 <?php endif; ?>
                 <?php wish_confirm_form($wish['id'], 'Reservation entfernen', 'Wirklich entfernen', 'wish_unreserve'); ?>
             <?php else: ?>
@@ -286,6 +286,7 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
                         <input type="hidden" name="id" value="<?= e($wish['id']) ?>">
                         <label>Name <input type="text" name="giver_name" required></label>
                         <label>E-Mail (optional) <input type="email" name="giver_email"></label>
+                        <label>Notiz (optional) <textarea name="giver_note" rows="2" maxlength="<?= GIVER_NOTE_MAX_LENGTH ?>"></textarea></label>
                         <button type="submit">Reservieren</button>
                     </form>
                 </details>

@@ -21,6 +21,7 @@ is_priority INTEGER NOT NULL DEFAULT 0,
 is_reserved INTEGER NOT NULL DEFAULT 0,
 giver_name TEXT,
 giver_email TEXT,
+giver_note TEXT,
 reserved_at DATETIME,
 cancel_token TEXT UNIQUE,
 created_at DATETIME DEFAULT CURRENT_TIMESTAMP

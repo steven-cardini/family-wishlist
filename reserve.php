@@ -19,15 +19,21 @@ if (!empty($_POST['website_url'])) {
 $wishId = (int)post('wish_id');
 $name = post('name');
 $email = post('email');
-if ($name === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-    flash('warning', 'Bitte gib deinen Namen und eine gültige E-Mail-Adresse an.');
+$note = post_giver_note('note');
+if ($name === '' || !valid_optional_email($email)) {
+    flash('warning', 'Bitte gib deinen Namen und optional eine gültige E-Mail-Adresse an.');
+    redirect('/');
+}
+if ($note === false) {
+    flash('warning', 'Die Notiz darf höchstens ' . GIVER_NOTE_MAX_LENGTH . ' Zeichen lang sein.');
     redirect('/');
 }
 
-$token = bin2hex(random_bytes(16));
-$stmt = db()->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, reserved_at = ?, cancel_token = ?
-    WHERE id = ? AND is_reserved = 0');
-$stmt->execute([$name, $email, gmdate('Y-m-d H:i:s'), $token, $wishId]);
+// Without email there is no cancellation link (docs/technical_specification.md, 2.3)
+$token = $email !== '' ? bin2hex(random_bytes(16)) : null;
+$stmt = db()->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, giver_note = ?, reserved_at = ?,
+    cancel_token = ? WHERE id = ? AND is_reserved = 0');
+$stmt->execute([$name, $email ?: null, $note !== '' ? $note : null, gmdate('Y-m-d H:i:s'), $token, $wishId]);
 if ($stmt->rowCount() !== 1) {
     flash('warning', 'Dieser Wunsch ist leider nicht mehr verfügbar.');
     redirect('/');
@@ -45,22 +51,27 @@ $details = implode("\n", array_filter([
     $wish['url'],
 ]));
 
-$sent = send_mail(
+$noteText = $note !== '' ? "\n\nNotiz an die Eltern:\n$note" : '';
+
+$sent = $email === '' || send_mail(
     $email,
     'Reservation bestätigt: ' . $wish['title'],
-    "Hallo $name\n\nDu hast diesen Wunsch reserviert:\n\n$details\n\n"
+    "Hallo $name\n\nDu hast diesen Wunsch reserviert:\n\n$details$noteText\n\n"
         . "Falls du die Reservation aufheben möchtest, öffne diesen Link:\n"
         . config('base_url') . '/cancel?token=' . $token
 );
+$giver = $email !== '' ? "$name ($email)" : $name;
 $sent = notify_parents(
     $wishId,
     "$name hat «{$wish['title']}» reserviert",
-    "$name ($email) hat den Wunsch «{$wish['title']}» für $for reserviert."
+    "$giver hat den Wunsch «{$wish['title']}» für $for reserviert.$noteText"
 ) && $sent;
 
-if ($sent) {
-    flash('success', 'Danke! Der Wunsch ist für dich reserviert. Du erhältst eine Bestätigung per E-Mail.');
-} else {
+if (!$sent) {
     flash('warning', 'Der Wunsch ist für dich reserviert, aber der E-Mail-Versand ist fehlgeschlagen.');
+} elseif ($email !== '') {
+    flash('success', 'Danke! Der Wunsch ist für dich reserviert. Du erhältst eine Bestätigung per E-Mail (falls nicht, schau im Spam-Ordner nach).');
+} else {
+    flash('success', 'Danke! Der Wunsch ist für dich reserviert.');
 }
 redirect('/');

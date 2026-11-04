@@ -16,7 +16,7 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 ### 1.2 Givers
 - Relatives or friends viewing the wishlist and reserving items.
 - Require **no user account or registration**.
-- Provide their name and email address at the moment of reservation (stored on the wish, no own table).
+- Provide their name, optionally their email address and a note to the parents at the moment of reservation (stored on the wish, no own table).
 
 ### 1.3 Administrators (Parents)
 - Access `/admin`, authenticated via a central admin password (stored as hash in `config.php`).
@@ -43,15 +43,16 @@ Each wish entry contains:
   - **Recipient(s):** Checkbox filter, listing only recipients linked to at least one wish; a wish matches if it belongs to any selected recipient (none selected: all).
   - **Status:** "Available only" (default), "Reserved only", "Show all".
 - Sort order: available before reserved; within each, priority wishes first, then newest first.
-- In "Show all", reserved wishes are rendered at the bottom, grayed out ("Bereits reserviert"). Giver details are never shown.
+- Reserved wishes are rendered at the bottom, grayed out, with their reservation date ("Reserviert am 24.12.2026"). Giver details are never shown.
 
 ### 2.3 Reservation Workflow (`/reserve`)
 1. Clicking "Reserve Gift" opens a modal.
-2. The giver submits their **Name** and **Email Address**.
+2. The giver submits their **Name**, optionally their **Email Address** and optionally a **Note to the parents** (max. 500 characters, e.g. "Wir bringen es an die Weihnachtsfeier mit.").
 3. Upon submission:
    - The wish is reserved only if still available (`UPDATE ... WHERE id = ? AND is_reserved = 0`); otherwise an error is shown.
-   - `is_reserved = 1`, `giver_name`, `giver_email`, `reserved_at` and a `cancel_token` (`bin2hex(random_bytes(16))`) are stored.
-   - A confirmation email is sent to the giver, containing the cancellation link `/cancel?token=XYZ`.
+   - `is_reserved = 1`, `giver_name`, `giver_email`, `giver_note`, `reserved_at` and, with email only, a `cancel_token` (`bin2hex(random_bytes(16))`) are stored.
+   - With email: a confirmation email is sent to the giver, containing the cancellation link `/cancel?token=XYZ`. The success message asks to check the spam folder if it does not arrive.
+   - Without email: no confirmation and no cancellation link; only admins can remove the reservation (the form says so).
    - Parents are notified according to Section 5.
 
 ### 2.4 Cancellation Workflow (`/cancel`)
@@ -61,12 +62,12 @@ Each wish entry contains:
 - Parents are notified according to Section 5.
 
 ### 2.5 Admin Manual Reservation
-- Giver name is required, email is optional.
+- Giver name is required, email and note are optional.
 - No emails are sent and no `cancel_token` is created.
 - Admins can also remove any reservation (no emails sent, confirmation required, see 2.8).
 
 ### 2.6 Admin Surprise Protection
-- In `/admin`, giver details of a wish linked to any recipient with `is_parent = 1` are hidden by default and shown only after an explicit click (`<details>` element).
+- In `/admin`, giver details (name, email, reservation date, note) of a wish linked to any recipient with `is_parent = 1` are hidden by default and shown only after an explicit click (`<details>` element).
 
 ### 2.7 Layout
 - Mobile-first: all pages, including `/admin`, work on phones (from 360 px width) and on larger screens, without horizontal scrolling and with touch-friendly controls.
@@ -149,14 +150,14 @@ The SQLite database schema and foreign key relations are defined exclusively in:
 
 On every reservation (2.3) and cancellation (2.4) by a giver:
 
-1. **Giver Confirmation Email (reservation only):**
+1. **Giver Confirmation Email (reservation with email only):**
    - Sent to: `giver_email`
-   - Content: Wish details, confirmation, and cancellation link (`/cancel?token=...`).
+   - Content: Wish details, note, confirmation, and cancellation link (`/cancel?token=...`).
 
 2. **Parent Notification:**
    - Candidates: all `recipients` with `is_parent = 1` and a non-empty `email`.
    - For each candidate: **Is this recipient linked to the wish in `wish_recipient`?**
-     - **NO:** Notification sent (*"Giver X reserved / cancelled Wish Y for Z"*, Z = all recipients of the wish).
+     - **NO:** Notification sent (*"Giver X reserved / cancelled Wish Y for Z"*, Z = all recipients of the wish; on reservation including the note).
      - **YES:** **No notification sent!** (Preserves the surprise for parents' own wishes.)
 
 Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp.from_email`) should belong to the SMTP account to avoid spam filtering.

@@ -341,13 +341,16 @@ check('price shown with "ca."', str_contains($page, 'Preis: <strong>ca. 30 CHF</
 check('gift placeholder without image', substr_count($page, '<div class="picture">') === 3 && substr_count($page, '<img ') === 1);
 check('no category left', stripos($page, 'categor') === false && stripos($page, 'Kategorie') === false);
 check('honeypot field in reservation form', str_contains($page, '<input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">'));
+check('reservation form: email optional, note field', str_contains($page, 'Deine E-Mail (optional) <input type="email" name="email" autocomplete="email">')
+    && str_contains($page, '<textarea name="note" rows="2" maxlength="500"'));
 
 // 2.3, 5: reservation
-$page = reserve($lego, 'Tante Erika', 'erika@example.com');
-check('reservation succeeds', str_contains($page, 'Der Wunsch ist für dich reserviert'));
+$page = reserve($lego, 'Tante Erika', 'erika@example.com', ['note' => "Kommt per Post.\r\nErika"]);
+check('reservation succeeds with spam folder hint', str_contains($page, 'Der Wunsch ist für dich reserviert') && str_contains($page, 'Spam-Ordner'));
 $w = wish($lego);
 check('reservation is stored', $w['is_reserved'] === 1 && $w['giver_name'] === 'Tante Erika' && $w['giver_email'] === 'erika@example.com'
     && preg_match('/^[0-9a-f]{32}$/', (string)$w['cancel_token']) === 1 && $w['reserved_at'] !== null);
+check('note is stored with "\n" line breaks', $w['giver_note'] === "Kommt per Post.\nErika");
 $mails = take_mails();
 check('mails to giver and both parents', recipients_of($mails) === ['erika@example.com', 'mama@example.com', 'papa@example.com']);
 $giverMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['erika@example.com']))[0] ?? ['from' => '', 'subject' => '', 'body' => ''];
@@ -355,23 +358,29 @@ check('site title as sender name and signature', $giverMail['from'] === SITE_TIT
     && str_ends_with(rtrim($giverMail['body']), SITE_TITLE));
 check('giver mail contains wish and cancel link', str_contains($giverMail['body'], "$base/cancel?token={$w['cancel_token']}")
     && str_contains($giverMail['body'], 'Grösse 134') && str_contains($giverMail['body'], 'Preis: ca. 30 CHF') && str_contains($giverMail['subject'], 'Lego <b>Set</b>'));
+check('giver mail contains note', str_contains(str_replace("\r\n", "\n", $giverMail['body']), "Notiz an die Eltern:\nKommt per Post.\nErika"));
 $parentMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['mama@example.com']))[0] ?? ['body' => ''];
-check('parent mail names giver, wish and recipients', str_contains($parentMail['body'], 'Tante Erika (erika@example.com) hat den Wunsch «Lego <b>Set</b>» für Kind reserviert'));
+check('parent mail names giver, wish, recipients and note', str_contains(str_replace("\r\n", "\n", $parentMail['body']),
+    "Tante Erika (erika@example.com) hat den Wunsch «Lego <b>Set</b>» für Kind reserviert.\n\nNotiz an die Eltern:\nKommt per Post.\nErika"));
 
 check('reserving a reserved wish fails', str_contains(reserve($lego, 'Onkel Max', 'max@example.com'), 'nicht mehr verfügbar'));
 check('first reservation is kept, no mails', wish($lego)['giver_name'] === 'Tante Erika' && take_mails() === []);
 
-reserve($book, 'Onkel Max', 'max@example.com');
+reserve($book, 'Onkel Max', 'max@example.com', ['note' => 'Bringe ich mit']);
 check('parent own wish: no notification to that parent', recipients_of(take_mails()) === ['max@example.com', 'papa@example.com']);
 
 reserve($bike, 'Bot', 'bot@example.com', ['website_url' => 'https://spam.example.com']);
 check('honeypot blocks reservation silently', wish($bike)['is_reserved'] === 0 && take_mails() === []);
 check('invalid giver email is rejected', str_contains(reserve($bike, 'X', 'nope'), 'gültige E-Mail') && wish($bike)['is_reserved'] === 0);
+check('too long note is rejected', str_contains(reserve($bike, 'X', '', ['note' => str_repeat('ä', 501)]), 'höchstens 500 Zeichen')
+    && wish($bike)['is_reserved'] === 0 && take_mails() === []);
 check('reservation without CSRF token fails', http('relative', 'POST', '/reserve', ['wish_id' => $bike, 'name' => 'X', 'email' => 'x@example.com'])['status'] === 400);
 
 $page = http('relative', 'GET', '/')['body'];
-check('reserved wishes at the bottom, giver hidden', strpos($page, 'Velo') < strpos($page, 'Lego')
-    && str_contains($page, 'Bereits reserviert') && !str_contains($page, 'Tante Erika') && !str_contains($page, 'erika@'));
+$reservedDay = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y');
+check('reserved wishes at the bottom with date, giver and note hidden', strpos($page, 'Velo') < strpos($page, 'Lego')
+    && str_contains($page, "✓ Reserviert am $reservedDay</span>") && !str_contains($page, 'Tante Erika') && !str_contains($page, 'erika@')
+    && !str_contains($page, 'Kommt per Post'));
 
 // 2.4: cancellation
 $token = $w['cancel_token'];
@@ -379,7 +388,8 @@ $r = http('scanner', 'GET', "/cancel?token=$token");
 check('cancel GET shows confirmation, changes nothing', str_contains($r['body'], 'name="token" value="' . $token . '"') && wish($lego)['is_reserved'] === 1);
 check('cancel confirmation', str_contains(submit('giver', '/cancel', ['token' => $token]), 'Die Reservation ist aufgehoben.'));
 $w = wish($lego);
-check('reservation is removed', $w['is_reserved'] === 0 && $w['giver_name'] === null && $w['giver_email'] === null && $w['cancel_token'] === null && $w['reserved_at'] === null);
+check('reservation is removed', $w['is_reserved'] === 0 && $w['giver_name'] === null && $w['giver_email'] === null
+    && $w['giver_note'] === null && $w['cancel_token'] === null && $w['reserved_at'] === null);
 $mails = take_mails();
 check('cancel notifies both parents', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
     && str_contains($mails[0]['body'], 'Tante Erika (erika@example.com) hat die Reservation des Wunsches «Lego <b>Set</b>» für Kind aufgehoben'));
@@ -387,21 +397,35 @@ check('used cancel link is invalid', str_contains(http('giver', 'GET', "/cancel?
 check('used cancel link cannot cancel again', str_contains(submit('giver', '/cancel', ['token' => $token]), 'nicht mehr gültig') && take_mails() === []);
 check('malformed cancel token is invalid', str_contains(http('giver', 'GET', '/cancel?token=abc')['body'], 'nicht mehr gültig'));
 
+// 2.3: reservation without email, longest note ("\r\n" counts as one character)
+$longNote = str_repeat('ä', 498) . "\r\nä";
+$page = reserve($lego, 'Nachbarin Lea', '', ['note' => $longNote]);
+check('reservation without email succeeds, no spam hint', str_contains($page, 'Danke! Der Wunsch ist für dich reserviert.') && !str_contains($page, 'Spam-Ordner'));
+$w = wish($lego);
+check('reservation without email has no token', $w['is_reserved'] === 1 && $w['giver_email'] === null && $w['cancel_token'] === null
+    && $w['giver_note'] === str_replace("\r\n", "\n", $longNote));
+$mails = take_mails();
+check('without email only parents are notified', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
+    && str_contains($mails[0]['body'], 'Nachbarin Lea hat den Wunsch «Lego <b>Set</b>» für Kind reserviert.'));
+
 // 2.5, 2.6: admin reservations and surprise protection
-admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'Grosi', 'giver_email' => '']);
+check('manual reservation with too long note fails', str_contains(admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'Grosi',
+    'giver_note' => str_repeat('a', 501)]), 'höchstens 500 Zeichen') && wish($bike)['is_reserved'] === 0);
+admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'Grosi', 'giver_email' => '', 'giver_note' => 'Per <b>Telefon</b>']);
 $w = wish($bike);
 check('manual reservation without email, token or mails', $w['is_reserved'] === 1 && $w['giver_name'] === 'Grosi'
-    && $w['giver_email'] === null && $w['cancel_token'] === null && take_mails() === []);
+    && $w['giver_email'] === null && $w['giver_note'] === 'Per <b>Telefon</b>' && $w['cancel_token'] === null && take_mails() === []);
 check('manual reservation of reserved wish fails', str_contains(admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'X']), 'bereits reserviert'));
 $page = http('admin', 'GET', '/admin')['body'];
 $reservedAt = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y H:i');
-check('giver of child wish shown with local time', str_contains($page, "Reserviert von Grosi, $reservedAt, manuell"));
+check('giver of child wish shown with local time and escaped note', str_contains($page, "<p class=\"pre-line\">Reserviert von Grosi, $reservedAt\nNotiz: Per &lt;b&gt;Telefon&lt;/b&gt;</p>"));
 check('reservation removal needs confirmation', str_contains($page, '<details class="confirm"><summary>Reservation entfernen</summary><button type="submit" name="action" value="wish_unreserve"'));
 check('wish delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="wish_delete"'));
-check('giver of parent wish hidden in details', str_contains($page, '<details><summary>Reserviert (Schenkende anzeigen)</summary><p>Onkel Max (max@example.com)')
+check('giver and note of parent wish hidden in details', preg_match('#<details><summary>Reserviert \(Schenkende anzeigen\)</summary><p class="pre-line">Onkel Max \(max@example\.com\), [^<]*\nNotiz: Bringe ich mit</p></details>#', $page) === 1
     && !str_contains($page, 'Reserviert von Onkel Max'));
 admin(['action' => 'wish_unreserve', 'id' => $bike]);
-check('admin removes reservation without mails', wish($bike)['is_reserved'] === 0 && take_mails() === []);
+check('admin removes reservation and note without mails', wish($bike)['is_reserved'] === 0 && wish($bike)['giver_note'] === null && take_mails() === []);
+check('manual reservation form has note field', str_contains(http('admin', 'GET', '/admin')['body'], '<textarea name="giver_note" rows="2" maxlength="500"></textarea>'));
 
 $tokenBefore = wish($book)['cancel_token'];
 admin(['id' => $book, 'title' => 'Krimi für Mama', 'recipients' => [$ids['Mama'], $ids['Papa']]] + $wishForm);

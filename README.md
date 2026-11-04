@@ -5,8 +5,8 @@ A small, self-hosted web app for sharing family wishlists. Relatives browse wish
 ## How it works
 
 - **Parents** maintain recipients and wishes in a password-protected admin area.
-- **Relatives** open a private link, filter wishes by person or availability, and reserve a gift with just their name and email.
-- **Reservations** trigger a confirmation email with a cancellation link. Parents are notified of reservations and cancellations, except for wishes that are their own, so surprises stay intact.
+- **Relatives** open a private link, filter wishes by person or availability, and reserve a gift with just their name, optionally with email and a note to the parents.
+- **Reservations** with an email trigger a confirmation email with a cancellation link. Parents are notified of reservations and cancellations, except for wishes that are their own, so surprises stay intact.
 
 ## Built with
 

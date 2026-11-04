@@ -32,6 +32,7 @@ const RECIPIENT_COLORS = [
 ];
 // Hash of the honeypot's inline style "display:none;"
 const HONEYPOT_STYLE_HASH = 'sha256-0EZqoz+oBhx7gF4nvY2bSqoGyy4zLjNF+SDQXGp/ZrY=';
+const GIVER_NOTE_MAX_LENGTH = 500;
 
 $isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 
@@ -92,6 +93,18 @@ function post(string $key): string
 {
     $value = $_POST[$key] ?? '';
     return is_string($value) ? trim($value) : '';
+}
+
+function valid_optional_email(string $email): bool
+{
+    return $email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+/** Giver note from a textarea, false if too long. Browsers send "\r\n" but count it as one character. */
+function post_giver_note(string $key): string|false
+{
+    $note = str_replace("\r\n", "\n", post($key));
+    return mb_strlen($note) <= GIVER_NOTE_MAX_LENGTH ? $note : false;
 }
 
 function redirect(string $path): never
@@ -160,14 +173,14 @@ function record_login_failure(): void
     db()->prepare('INSERT INTO login_failures (ip) VALUES (?)')->execute([$_SERVER['REMOTE_ADDR'] ?? '']);
 }
 
-function format_date(?string $utc): string
+function format_date(?string $utc, string $format = 'd.m.Y H:i'): string
 {
     if ($utc === null || $utc === '') {
         return '';
     }
     return (new DateTimeImmutable($utc, new DateTimeZone('UTC')))
         ->setTimezone(new DateTimeZone((string)config('timezone')))
-        ->format('d.m.Y H:i');
+        ->format($format);
 }
 
 /** Wishes in display order, each with 'recipients' (id, name, is_parent, color). */
