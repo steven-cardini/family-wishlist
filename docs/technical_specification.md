@@ -22,6 +22,7 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 - Access `/admin`, authenticated via a central admin password (stored as hash in `config.php`).
 - Full CRUD permissions for recipients and wishes.
 - Ability to manually mark wishes as reserved on behalf of others (e.g., phone calls from grandparents).
+- View the login log at `/audit` (see 2.9).
 
 ---
 
@@ -85,6 +86,11 @@ Each wish entry contains:
 - An invalid or already used cancel token shows "link no longer valid".
 - Dates are stored in UTC and displayed in the `timezone` from `config.php`.
 
+### 2.9 Login Log (`/audit`)
+- Admins only (same login as `/admin`, see 7.2); otherwise redirects to `/admin`.
+- Lists the newest 200 rows of `login_attempts` (time, event, IP): successful admin logins and failed access key and admin password attempts. Successful access key logins and throttled attempts are not recorded.
+- Rows older than 90 days are deleted (on every login attempt and every `/audit` view).
+
 ---
 
 ## 3. Security, Anti-Spam & Privacy Architecture
@@ -118,7 +124,7 @@ Each wish entry contains:
   ```
   Backend rule: If `!empty($_POST['website_url'])`, processing halts silently.
 - **CSRF:** All POST forms (except `/cancel`, protected by its token) include a per-session CSRF token, checked with `hash_equals()`.
-- **Login throttling:** Failed access key and admin password attempts are stored per IP in `login_failures`. After 10 failures within 15 minutes, further attempts from that IP are rejected.
+- **Login throttling:** Failed access key and admin password attempts are stored per IP in `login_attempts` (see 2.9). After 10 failures within 15 minutes, further attempts from that IP are rejected.
 
 ### 3.5 HTTP Security Headers
 Sent by `bootstrap.php` on every response:
@@ -133,7 +139,7 @@ CDN assets are version-pinned and loaded with Subresource Integrity (`integrity`
 ### 3.6 File Access Protection (`.htaccess`)
 - Redirects HTTP to HTTPS.
 - Denies HTTP access to `data/` (database, sessions), `db/`, `docs/`, `lib/`, `tests/`, dotfiles (e.g., `.git`; except `.well-known/` for TLS certificate renewal), and `router.php`, `config.php`, `bootstrap.php`, `db.php`.
-- Rewrites `/admin`, `/reserve` and `/cancel` to their PHP files. The app runs at the domain root.
+- Rewrites `/admin`, `/audit`, `/reserve` and `/cancel` to their PHP files. The app runs at the domain root.
 - Requires Apache with `mod_rewrite`. Locally, `router.php` emulates the rewrites for `php -S`.
 
 ---
@@ -148,7 +154,7 @@ The SQLite database schema and foreign key relations are defined exclusively in:
 - `wishes`: Main wishlist items.
 - `reservations`: At most one per wish (primary key `wish_id`); a wish is reserved if it has one. Deleted with its wish.
 - `wish_recipient`: Junction table mapping multi-recipient relationships to `wishes`.
-- `login_failures`: Failed login attempts for throttling.
+- `login_attempts`: Successful admin logins and all failed logins, for throttling and the login log (2.9).
 
 ---
 

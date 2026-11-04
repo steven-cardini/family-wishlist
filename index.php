@@ -15,7 +15,7 @@ if (isset($_GET['key'])) {
         $_SESSION['access_key_hash'] = access_key_hash();
         redirect('/');
     } else {
-        record_login_failure();
+        record_login_attempt('key', false);
         $error = 'Dieser Code ist ungültig.';
     }
 }

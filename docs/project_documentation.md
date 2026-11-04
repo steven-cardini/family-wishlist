@@ -9,7 +9,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 - **Frictionless Reservations:** Relatives (givers) can reserve gifts without registering or creating an account.
 - **Easy Cancellation:** Confirmation emails include a unique cancellation link to undo a reservation.
 - **Surprise Protection:** Parents are emailed about reservations and cancellations, except for wishes that belong to them. In the admin dashboard, givers of parents' wishes are hidden until clicked.
-- **Admin Dashboard:** Password-protected panel for parents to add, edit, delete, or manually mark wishes as reserved (e.g., for offline reservations).
+- **Admin Dashboard:** Password-protected panel for parents to add, edit, delete, or manually mark wishes as reserved (e.g., for offline reservations), and a log of admin logins and failed login attempts.
 - **No Passwords for Relatives:** Frictionless access control using a shared link or code (`?key=...`) and session cookies.
 - **Mobile-First:** Works on phones and larger screens.
 - **Light & Dark Theme:** Follows the device setting, can be overridden with a toggle (stored in a cookie).
@@ -33,6 +33,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 ├── db.php               # PDO database connection & one-time initialization
 ├── index.php            # /        Wishlist page for relatives (filters & modal)
 ├── admin.php            # /admin   Password-protected management dashboard
+├── audit.php            # /audit   Login log (admins only)
 ├── reserve.php          # /reserve Handles reservations & emails
 ├── cancel.php           # /cancel  Handles token-based cancellations
 ├── style.css            # Theme and layout on top of Pico.css

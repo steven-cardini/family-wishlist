@@ -304,6 +304,19 @@ $adminCsrf = csrf('admin', '/admin');
 check('admin login without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'login', 'password' => ADMIN_PASSWORD])['status'] === 400);
 check('wrong admin password is rejected', str_contains(admin(['action' => 'login', 'password' => 'wrong']), 'Falsches Passwort'));
 check('admin login works', str_contains(admin(['action' => 'login', 'password' => ADMIN_PASSWORD]), 'Neuer Wunsch'));
+check('admin page links to audit log', str_contains(http('admin', 'GET', '/admin')['body'], 'href="/audit"'));
+
+// 2.9: audit log
+$r = http('anonymous', 'GET', '/audit');
+check('audit log without admin login redirects to /admin', $r['status'] === 303 && str_contains($r['headers'], "Location: /admin\r\n"));
+check('admin logins and failed logins are recorded, key logins are not',
+    q('SELECT target, success FROM login_attempts ORDER BY rowid') === [['target' => 'key', 'success' => 0], ['target' => 'admin', 'success' => 0], ['target' => 'admin', 'success' => 1]]);
+q("INSERT INTO login_attempts (ip, target, success, attempted_at) VALUES ('<b>x</b>', 'admin', 1, datetime('now', '-91 days'))");
+q("INSERT INTO login_attempts (ip, target, success, attempted_at) VALUES ('<b>y</b>', 'admin', 1, datetime('now', '-89 days'))");
+$page = http('admin', 'GET', '/audit')['body'];
+check('audit log lists attempts newest first', preg_match('#<td>Anmeldung Verwaltung<br><small>IP 127\.0\.0\.1</small></td>.*<td>Falsches Passwort<br>.*<td>Falscher Code<br>#s', $page) === 1);
+check('audit log escapes IP', str_contains($page, '&lt;b&gt;y&lt;/b&gt;') && !str_contains($page, '<b>y</b>'));
+check('attempts older than 90 days are deleted', !str_contains($page, '&lt;b&gt;x&lt;/b&gt;') && count(q("SELECT * FROM login_attempts WHERE ip = '<b>x</b>'")) === 0);
 check('admin session counts as access', str_contains(http('admin', 'GET', '/')['body'], 'x-data="wishlist"'));
 check('admin action without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'recipient_save', 'name' => 'X', 'color' => 'blue'])['status'] === 400);
 

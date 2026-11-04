@@ -10,4 +10,4 @@ RewriteRule ^(data|db|docs|lib|tests)(/|$) - [F]
 RewriteRule (^|/)\.(?!well-known/) - [F]
 RewriteRule ^(router|config|bootstrap|db)\.php$ - [F]
 
-RewriteRule ^(admin|reserve|cancel)$ $1.php [L]
+RewriteRule ^(admin|audit|reserve|cancel)$ $1.php [L]

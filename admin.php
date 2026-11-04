@@ -180,8 +180,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_regenerate_id(true);
             $_SESSION['is_admin'] = true;
             $_SESSION['admin_since'] = time();
+            record_login_attempt('admin', true);
         } else {
-            record_login_failure();
+            record_login_attempt('admin', false);
             flash('warning', 'Falsches Passwort.');
         }
         redirect('/admin');
@@ -309,6 +310,11 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
     <?php endforeach; ?>
     <h3>Neuer Empfänger</h3>
     <?php recipient_form(['id' => 0, 'name' => '', 'email' => '', 'is_parent' => 0, 'color' => next_color()]); ?>
+</section>
+
+<section>
+    <h2>Protokoll</h2>
+    <p><a href="/audit">Anmeldungen und Fehlversuche ansehen</a></p>
 </section>
 <?php
 page_end();

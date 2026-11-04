@@ -410,3 +410,8 @@ dialog small {
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+/* Long IPv6 addresses must not widen the page */
+.audit small {
+  overflow-wrap: anywhere;
+}

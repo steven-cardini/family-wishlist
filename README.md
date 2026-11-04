@@ -37,7 +37,7 @@ If your host deploys by pulling from Git, make sure it keeps files not in Git (`
 
 ### 3. `.htaccess`
 
-Included in the repository, nothing to add. It redirects HTTP to HTTPS (so a valid TLS certificate must exist before the first visit), maps `/admin`, `/reserve` and `/cancel` to their PHP files and blocks private files (`config.php`, `data/`, `.git/`, ...).
+Included in the repository, nothing to add. It redirects HTTP to HTTPS (so a valid TLS certificate must exist before the first visit), maps `/admin`, `/audit`, `/reserve` and `/cancel` to their PHP files and blocks private files (`config.php`, `data/`, `.git/`, ...).
 
 ### 4. Check after deploying
 

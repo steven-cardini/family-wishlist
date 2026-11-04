@@ -41,10 +41,12 @@ FOREIGN KEY (wish_id) REFERENCES wishes(id) ON DELETE CASCADE,
 FOREIGN KEY (recipient_id) REFERENCES recipients(id) ON DELETE RESTRICT
 );
 
--- Failed login attempts (access key & admin password throttling)
-CREATE TABLE login_failures (
+-- Successful admin logins and all failed logins (throttling and /audit)
+CREATE TABLE login_attempts (
 ip TEXT NOT NULL,
-failed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+target TEXT NOT NULL, -- 'key' (access key) or 'admin'
+success INTEGER NOT NULL,
+attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 PRAGMA user_version = 1;

@@ -8,7 +8,7 @@ if (preg_match('#^/(data|db|docs|lib|tests)(/|$)|/\.|^/(router|config|bootstrap|
     http_response_code(403);
     exit;
 }
-if (preg_match('#^/(admin|reserve|cancel)$#', $path)) {
+if (preg_match('#^/(admin|audit|reserve|cancel)$#', $path)) {
     require __DIR__ . $path . '.php';
     exit;
 }
