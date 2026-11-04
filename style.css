@@ -204,6 +204,13 @@ dialog small {
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
+.chips .separator {
+  width: 1px;
+  margin: 0.25rem;
+  background: var(--pico-muted-color);
+  opacity: 0.4;
+}
+
 .chips label:hover {
   border-color: var(--pico-primary-border);
 }

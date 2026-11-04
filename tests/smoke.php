@@ -377,6 +377,21 @@ $page = http('relative', 'GET', '/')['body'];
 check('site title on wishlist', str_contains($page, '<title>' . SITE_TITLE . '</title>') && str_contains($page, '<h1>' . SITE_TITLE . '</h1>'));
 check('wish title is HTML-escaped', str_contains($page, 'Lego &lt;b&gt;Set&lt;/b&gt;') && !str_contains($page, '<b>Set</b>'));
 check('priority first, then newest first', strpos($page, 'Lego') < strpos($page, 'Velo') && strpos($page, 'Velo') < strpos($page, 'Buch für Mama'));
+admin(['action' => 'recipient_save', 'name' => 'Zora', 'color' => 'teal']);
+$zora = q('SELECT id FROM recipients WHERE name = ?', ['Zora'])[0]['id'];
+admin(['title' => 'Familienspiel', 'recipients' => [$ids['Kind'], $ids['Mama'], $zora]] + $wishForm);
+admin(['title' => 'Parfum', 'recipients' => [$ids['Mama']], 'is_priority' => 'on'] + $wishForm);
+$page = http('relative', 'GET', '/')['body'];
+$chip = fn (int $id): int|false => strpos($page, 'value="' . $id . '" x-model');
+check('filter lists non-parents first, then a separator and parents', $chip($ids['Kind']) < $chip($zora)
+    && $chip($zora) < strpos($page, '<span class="separator" aria-hidden="true"></span>')
+    && strpos($page, '<span class="separator"') < $chip($ids['Mama']) && substr_count($page, 'class="separator"') === 1);
+check('wishes for parents only last, also if priority', max(strpos($page, 'Velo'), strpos($page, 'Familienspiel')) < strpos($page, 'Parfum') && strpos($page, 'Parfum') < strpos($page, 'Buch für Mama'));
+$wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
+admin(['action' => 'wish_delete', 'id' => $wishIds['Familienspiel']]);
+admin(['action' => 'wish_delete', 'id' => $wishIds['Parfum']]);
+admin(['action' => 'recipient_delete', 'id' => $zora]);
+$page = http('relative', 'GET', '/')['body'];
 check('wish data attributes for filtering', str_contains($page, 'data-recipients="' . $ids['Kind'] . '"'));
 check('filter lists only recipients with wishes', str_contains($page, 'value="' . $ids['Kind'] . '" x-model')
     && str_contains($page, 'value="' . $ids['Mama'] . '" x-model') && !str_contains($page, 'value="' . $ids['Papa'] . '" x-model')

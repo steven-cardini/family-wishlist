@@ -38,8 +38,8 @@ if ($error !== '' || !has_access()) {
     exit;
 }
 
-$recipients = db()->query('SELECT id, name, color FROM recipients WHERE id IN (SELECT recipient_id FROM wish_recipient)
-    ORDER BY name')->fetchAll();
+$recipients = db()->query('SELECT id, name, color, is_parent FROM recipients WHERE id IN (SELECT recipient_id FROM wish_recipient)
+    ORDER BY is_parent, name')->fetchAll();
 $wishes = load_wishes();
 $giver = $_SESSION['giver'] ?? ['name' => '', 'email' => ''];
 $shareUrl = config('base_url') . '/?key=' . rawurlencode((string)config('access_key'));
@@ -159,7 +159,8 @@ page_start($title, $script);
 <?php if ($recipients): ?>
 <fieldset class="chips">
     <legend>Für</legend>
-    <?php foreach ($recipients as $recipient): ?>
+    <?php foreach ($recipients as $i => $recipient): ?>
+        <?php if ($recipient['is_parent'] && $i > 0 && !$recipients[$i - 1]['is_parent']): ?><span class="separator" aria-hidden="true"></span><?php endif; ?>
         <label class="recipient color-<?= e($recipient['color']) ?>"><input type="checkbox" value="<?= e($recipient['id']) ?>" x-model="recipients"> <?= e($recipient['name']) ?></label>
     <?php endforeach; ?>
 </fieldset>

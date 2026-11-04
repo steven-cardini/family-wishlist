@@ -241,7 +241,8 @@ function load_wishes(): array
     $wishes = [];
     $rows = db()->query('SELECT w.*, r.wish_id IS NOT NULL AS is_reserved, r.giver_name, r.giver_email, r.giver_note, r.reserved_at
         FROM wishes w LEFT JOIN reservations r ON r.wish_id = w.id
-        ORDER BY is_reserved, w.is_priority DESC, w.created_at DESC, w.id DESC');
+        ORDER BY is_reserved, EXISTS (SELECT 1 FROM wish_recipient wr JOIN recipients rc ON rc.id = wr.recipient_id
+            WHERE wr.wish_id = w.id AND rc.is_parent = 0) DESC, w.is_priority DESC, w.created_at DESC, w.id DESC');
     foreach ($rows as $wish) {
         $wish['recipients'] = [];
         $wishes[$wish['id']] = $wish;
