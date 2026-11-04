@@ -12,6 +12,7 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 - **Admin Dashboard:** Password-protected panel for parents to add, edit, delete, or manually mark wishes as reserved (e.g., for offline reservations).
 - **No Passwords for Relatives:** Frictionless access control using a secret URL key (`?key=...`) and session cookies.
 - **Mobile-First:** Works on phones and larger screens.
+- **Light & Dark Theme:** Follows the device setting, can be overridden with a toggle (stored in a cookie).
 
 ## Tech Stack
 

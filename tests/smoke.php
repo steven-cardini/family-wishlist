@@ -153,7 +153,7 @@ function check(string $name, bool $ok): void
 }
 
 /** HTTP request with a cookie jar per client. */
-function http(string $client, string $method, string $path, array $data = []): array
+function http(string $client, string $method, string $path, array $data = [], string $cookie = ''): array
 {
     global $base, $tmp;
     $curl = curl_init($base . $path);
@@ -162,6 +162,7 @@ function http(string $client, string $method, string $path, array $data = []): a
         CURLOPT_HEADER => true,
         CURLOPT_COOKIEFILE => "$tmp/$client.cookies",
         CURLOPT_COOKIEJAR => "$tmp/$client.cookies",
+        CURLOPT_COOKIE => $cookie,
     ]);
     if ($method === 'POST') {
         curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
@@ -266,6 +267,13 @@ check('meta robots noindex', str_contains($r['body'], '<meta name="robots" conte
 check('site title on key form', str_contains($r['body'], '<title>' . SITE_TITLE . '</title>') && str_contains($r['body'], '<h1>' . SITE_TITLE . '</h1>'));
 check('anonymous visitor gets key form and no session', str_contains($r['body'], 'name="key"')
     && !str_contains($r['body'], 'x-data') && !str_contains($r['headers'], 'Set-Cookie'));
+check('theme follows device without cookie', str_contains($r['body'], '<html lang="de-CH">'));
+check('theme toggle hidden until its script runs', str_contains($r['body'], '<button type="button" class="theme-toggle secondary outline" aria-label="Dunkles Design" title="Dunkles Design" hidden>')
+    && preg_match('#<script nonce="[^"]+">\{\s+const toggle = document\.querySelector\(\'\.theme-toggle\'\)#', $r['body']) === 1);
+check('favicon and theme color', str_contains($r['body'], '<link rel="icon" href="data:image/svg+xml,') && str_contains($r['body'], '<meta name="theme-color" content="#b02a5b">'));
+check('theme cookie sets data-theme', str_contains(http('anonymous', 'GET', '/', [], 'theme=dark')['body'], '<html lang="de-CH" data-theme="dark">')
+    && str_contains(http('anonymous', 'GET', '/', [], 'theme=light')['body'], '<html lang="de-CH" data-theme="light">'));
+check('invalid theme cookie is ignored', str_contains(http('anonymous', 'GET', '/', [], 'theme=%22%3E%3Cb%3E')['body'], '<html lang="de-CH">'));
 check('robots.txt disallows all', http('anonymous', 'GET', '/robots.txt')['body'] === "User-agent: *\nDisallow: /\n");
 foreach (['/data/db.sqlite', '/db/schema.sql', '/docs/technical_specification.md', '/lib/PHPMailer/PHPMailer.php',
     '/tests/smoke.php', '/.htaccess', '/config.php', '/bootstrap.php', '/db.php', '/router.php'] as $path) {
@@ -337,17 +345,22 @@ check('filter lists only recipients with wishes', str_contains($page, 'value="' 
     && !str_contains($page, 'value="' . $ids['Oma'] . '" x-model'));
 check('filter chip in recipient color', str_contains($page, '<label class="recipient color-green"><input type="checkbox" value="' . $ids['Mama'] . '"'));
 check('recipient tags in color', str_contains($page, '<p class="recipients">Für <span class="recipient color-blue">Kind</span></p>'));
-check('priority wish shown as "Grosser Wunsch"', substr_count($page, '★ Grosser Wunsch') === 1 && str_contains($page, 'class="wish priority"'));
+check('priority wish shown as "Grosser Wunsch"', substr_count($page, '<span aria-hidden="true">★</span> Grosser Wunsch') === 1 && str_contains($page, 'class="wish priority"'));
 check('price shown with "ca."', str_contains($page, 'Preis: <strong>ca. 30 CHF</strong>') && !str_contains($page, 'ca. ca.'));
 check('gift placeholder without image', substr_count($page, '<div class="picture">') === 3 && substr_count($page, '<img ') === 1);
 check('no category left', stripos($page, 'categor') === false && stripos($page, 'Kategorie') === false);
 check('honeypot field in reservation form', str_contains($page, '<input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">'));
-check('reservation form: email optional, note field', str_contains($page, 'Deine E-Mail (optional) <input type="email" name="email" autocomplete="email">')
+check('filter summary with reset button', str_contains($page, '<p role="status" x-text="summary"></p>')
+    && str_contains($page, '<button type="button" class="outline" x-show="filtered" x-cloak @click="resetFilters">Filter zurücksetzen</button>'));
+check('shop link announces new tab', str_contains($page, 'target="_blank" rel="noopener noreferrer" role="button" class="secondary outline" aria-label="Zum Shop (öffnet in neuem Tab)">'));
+check('reservation form: empty name, email optional, note field', str_contains($page, 'Dein Name <input type="text" name="name" value="" required')
+    && str_contains($page, 'Deine E-Mail (optional) <input type="email" name="email" value="" autocomplete="email">')
     && str_contains($page, '<textarea name="note" rows="2" maxlength="500"'));
 
 // 2.3, 5: reservation
 $page = reserve($lego, 'Tante Erika', 'erika@example.com', ['note' => "Kommt per Post.\r\nErika"]);
 check('reservation succeeds with spam folder hint', str_contains($page, 'Der Wunsch ist für dich reserviert') && str_contains($page, 'Spam-Ordner'));
+check('reservation form prefilled with last giver', str_contains($page, 'name="name" value="Tante Erika"') && str_contains($page, 'name="email" value="erika@example.com"'));
 $w = wish($lego);
 check('reservation is stored', $w['is_reserved'] === 1 && $w['giver_name'] === 'Tante Erika' && $w['giver_email'] === 'erika@example.com'
     && preg_match('/^[0-9a-f]{32}$/', (string)$w['cancel_token']) === 1 && $w['reserved_at'] !== null);
@@ -382,7 +395,7 @@ check('reservation without CSRF token fails', http('relative', 'POST', '/reserve
 $page = http('relative', 'GET', '/')['body'];
 $reservedDay = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y');
 check('reserved wishes at the bottom with date, giver and note hidden', strpos($page, 'Velo') < strpos($page, 'Lego')
-    && str_contains($page, "✓ Reserviert am $reservedDay</span>") && !str_contains($page, 'Tante Erika') && !str_contains($page, 'erika@')
+    && str_contains($page, "<span aria-hidden=\"true\">✓</span> Reserviert am $reservedDay</span>") && !str_contains($page, 'Tante Erika') && !str_contains($page, 'erika@')
     && !str_contains($page, 'Kommt per Post'));
 
 // 2.4: cancellation
@@ -396,7 +409,8 @@ check('reservation is removed', $w['is_reserved'] === 0 && $w['giver_name'] === 
 $mails = take_mails();
 check('cancel notifies both parents', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
     && str_contains($mails[0]['body'], 'Tante Erika (erika@example.com) hat die Reservation des Wunsches «Lego <b>Set</b>» für Kind aufgehoben'));
-check('used cancel link is invalid', str_contains(http('giver', 'GET', "/cancel?token=$token")['body'], 'nicht mehr gültig'));
+$r = http('giver', 'GET', "/cancel?token=$token");
+check('used cancel link is invalid, with link to wishlist', str_contains($r['body'], 'nicht mehr gültig') && str_contains($r['body'], '<a href="/">Zum Wunschzettel</a>'));
 check('used cancel link cannot cancel again', str_contains(submit('giver', '/cancel', ['token' => $token]), 'nicht mehr gültig') && take_mails() === []);
 check('malformed cancel token is invalid', str_contains(http('giver', 'GET', '/cancel?token=abc')['body'], 'nicht mehr gültig'));
 
@@ -404,6 +418,7 @@ check('malformed cancel token is invalid', str_contains(http('giver', 'GET', '/c
 $longNote = str_repeat('ä', 498) . "\r\nä";
 $page = reserve($lego, 'Nachbarin Lea', '', ['note' => $longNote]);
 check('reservation without email succeeds, no spam hint', str_contains($page, 'Danke! Der Wunsch ist für dich reserviert.') && !str_contains($page, 'Spam-Ordner'));
+check('prefill follows the last giver', str_contains($page, 'name="name" value="Nachbarin Lea"') && str_contains($page, 'name="email" value=""'));
 $w = wish($lego);
 check('reservation without email has no token', $w['is_reserved'] === 1 && $w['giver_email'] === null && $w['cancel_token'] === null
     && $w['giver_note'] === str_replace("\r\n", "\n", $longNote));

@@ -259,7 +259,7 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
     <h2>Wünsche</h2>
     <?php foreach ($wishes as $wish): ?>
         <article>
-            <?php if ($wish['is_priority']): ?><p><span class="badge priority">★ Grosser Wunsch</span></p><?php endif; ?>
+            <?php if ($wish['is_priority']): ?><p><span class="badge priority"><span aria-hidden="true">★</span> Grosser Wunsch</span></p><?php endif; ?>
             <h3><?= e($wish['title']) ?></h3>
             <?= recipient_tags($wish['recipients']) ?>
             <?php if ($wish['is_reserved']):

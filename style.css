@@ -1,60 +1,62 @@
-/* Theme on top of Pico.css v2 (selectors match Pico's light/dark blocks) */
-:root {
+/* Theme on top of Pico.css v2. light-dark() follows Pico's color-scheme: the device setting or data-theme (toggle).
+   Selectors match Pico's theme blocks, so these values win in both cases. */
+:root:not([data-theme=dark]), [data-theme=dark] {
   --pico-border-radius: 0.6rem;
   --heading-font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --card-radius: 1rem;
+  --pico-background-color: light-dark(#fbf8f6, rgb(19 22.5 30.5));
+  --pico-card-background-color: light-dark(#fff, #1b1f29);
+  --pico-card-sectioning-background-color: light-dark(#fcf8f9, rgb(26 30.5 40.25));
+  --pico-card-box-shadow: 0 1px 2px light-dark(rgb(90 40 60 / 6%), rgb(0 0 0 / 20%)), 0 8px 24px light-dark(rgb(90 40 60 / 7%), rgb(0 0 0 / 25%));
+  --pico-text-selection-color: light-dark(rgb(176 42 91 / 20%), rgb(240 140 176 / 25%));
+  --pico-primary: light-dark(#b02a5b, #f08cb0);
+  --pico-primary-background: light-dark(#b02a5b, #c0396b);
+  --pico-primary-underline: light-dark(rgb(176 42 91 / 50%), rgb(240 140 176 / 50%));
+  --pico-primary-hover: light-dark(#8c1f47, #f6b0c9);
+  --pico-primary-hover-background: light-dark(#8c1f47, #d24b7c);
+  --pico-primary-focus: light-dark(rgb(176 42 91 / 35%), rgb(240 140 176 / 35%));
+  --pico-primary-inverse: #fff;
+  --card-hover-shadow: 0 2px 4px light-dark(rgb(90 40 60 / 8%), transparent), 0 16px 36px light-dark(rgb(90 40 60 / 12%), rgb(0 0 0 / 35%));
+  --glow: light-dark(rgb(176 42 91 / 12%), rgb(240 140 176 / 10%));
+  --badge-background: light-dark(#f9e7ee, #3a2230);
+  --badge-color: light-dark(#8c1f47, #f6b0c9);
+  --priority-background: light-dark(#fff0c2, #3b3115);
+  --priority-color: light-dark(#6e4a00, #f5d27a);
 }
 
-@media not all and (prefers-color-scheme: dark) {
-  :root:not([data-theme=dark]) {
-    --pico-background-color: #fbf8f6;
-    --pico-card-background-color: #fff;
-    --pico-card-sectioning-background-color: #fcf8f9;
-    --pico-card-box-shadow: 0 1px 2px rgb(90 40 60 / 6%), 0 8px 24px rgb(90 40 60 / 7%);
-    --pico-text-selection-color: rgb(176 42 91 / 20%);
-    --pico-primary: #b02a5b;
-    --pico-primary-background: #b02a5b;
-    --pico-primary-underline: rgb(176 42 91 / 50%);
-    --pico-primary-hover: #8c1f47;
-    --pico-primary-hover-background: #8c1f47;
-    --pico-primary-focus: rgb(176 42 91 / 35%);
-    --pico-primary-inverse: #fff;
-    --card-hover-shadow: 0 2px 4px rgb(90 40 60 / 8%), 0 16px 36px rgb(90 40 60 / 12%);
-    --glow: rgb(176 42 91 / 12%);
-    --badge-background: #f9e7ee;
-    --badge-color: #8c1f47;
-    --priority-background: #fff0c2;
-    --priority-color: #6e4a00;
-  }
-}
-
-@media only screen and (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --pico-card-background-color: #1b1f29;
-    --pico-text-selection-color: rgb(240 140 176 / 25%);
-    --pico-primary: #f08cb0;
-    --pico-primary-background: #c0396b;
-    --pico-primary-underline: rgb(240 140 176 / 50%);
-    --pico-primary-hover: #f6b0c9;
-    --pico-primary-hover-background: #d24b7c;
-    --pico-primary-focus: rgb(240 140 176 / 35%);
-    --pico-primary-inverse: #fff;
-    --card-hover-shadow: 0 16px 36px rgb(0 0 0 / 35%);
-    --glow: rgb(240 140 176 / 10%);
-    --badge-background: #3a2230;
-    --badge-color: #f6b0c9;
-    --priority-background: #3b3115;
-    --priority-color: #f5d27a;
-  }
+[x-cloak] {
+  display: none !important;
 }
 
 body {
   background: radial-gradient(ellipse 70rem 26rem at 50% -8rem, var(--glow), transparent 70%) no-repeat;
 }
 
+body > header {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 0;
+}
+
 body > main {
-  padding-top: 2.5rem;
+  padding-top: 0.5rem;
   padding-bottom: 4rem;
+}
+
+.theme-toggle {
+  padding: 0.55rem;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.theme-toggle svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.theme-toggle[aria-pressed=true] .moon,
+.theme-toggle:not([aria-pressed=true]) .sun {
+  display: none;
 }
 
 h1, h2, h3 {
@@ -102,17 +104,16 @@ section > h2 {
   padding: 0.8rem 1rem;
   border-left: 0.3rem solid;
   border-radius: var(--pico-border-radius);
-  color: #1f1f1f;
 }
 
 .success {
   border-color: #2e9a5b;
-  background: #dcf3e4;
+  background: light-dark(#dcf3e4, #173322);
 }
 
 .warning {
   border-color: #dc7a1c;
-  background: #fde8d2;
+  background: light-dark(#fde8d2, #3d2812);
 }
 
 .pre-line {
@@ -130,11 +131,40 @@ dialog small {
 
 /* Filters */
 .filters {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 1.25rem 1.25rem 0.25rem;
   border-radius: var(--card-radius);
   background: var(--pico-card-background-color);
   box-shadow: var(--pico-card-box-shadow);
+}
+
+.filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.25rem;
+  color: var(--pico-muted-color);
+}
+
+.filter-summary p {
+  margin: 0;
+  color: inherit;
+  font-weight: inherit;
+}
+
+/* Active filter: hard to overlook */
+.filter-summary.active {
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border-radius: var(--pico-border-radius);
+  background: var(--badge-background);
+  color: var(--badge-color);
+  font-weight: 600;
+}
+
+.filter-summary button {
+  padding: 0.3rem 0.9rem;
 }
 
 .chips {
@@ -178,6 +208,7 @@ dialog small {
 
 .chips label:has(:checked)::before {
   content: "✓";
+  content: "✓" / "";
 }
 
 .chips label:has(:focus-visible) {
@@ -255,12 +286,19 @@ dialog small {
   white-space: nowrap;
 }
 
+/* Reserved: faded picture, but text keeps full contrast */
 .wish.reserved {
-  opacity: 0.6;
+  border: 1px dashed var(--pico-muted-border-color);
+  background: transparent;
+  box-shadow: none;
+}
+
+.wish.reserved .picture {
+  filter: grayscale(1);
 }
 
 .wish.reserved .picture > img {
-  filter: grayscale(1);
+  opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: no-preference) {

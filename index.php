@@ -41,6 +41,7 @@ if ($error !== '' || !has_access()) {
 $recipients = db()->query('SELECT id, name, color FROM recipients WHERE id IN (SELECT recipient_id FROM wish_recipient)
     ORDER BY name')->fetchAll();
 $wishes = load_wishes();
+$giver = $_SESSION['giver'] ?? ['name' => '', 'email' => ''];
 
 $script = <<<'JS'
 document.addEventListener('error', (event) => {
@@ -50,15 +51,65 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('wishlist', () => ({
         recipients: [],
         status: 'available',
+        recipientNames: [],
         wishId: '',
         wishTitle: '',
+        init() {
+            this.recipientNames = [...this.$el.querySelectorAll('.chips input')]
+                .map((input) => ({ id: input.value, name: input.parentElement.textContent.trim() }));
+            // Filters survive the reload after a reservation (sessionStorage may be unavailable)
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('filters')) ?? {};
+                if (['available', 'reserved', 'all'].includes(saved.status)) this.status = saved.status;
+                if (Array.isArray(saved.recipients)) {
+                    this.recipients = this.recipientNames.map((r) => r.id).filter((id) => saved.recipients.includes(id));
+                }
+            } catch {}
+            const save = () => {
+                try {
+                    sessionStorage.setItem('filters', JSON.stringify({ recipients: this.recipients, status: this.status }));
+                } catch {}
+            };
+            this.$watch('recipients', save);
+            this.$watch('status', save);
+        },
         shows(el) {
             const data = el.dataset;
             return (this.status === 'all' || (this.status === 'reserved') === (data.reserved === '1'))
                 && (this.recipients.length === 0 || data.recipients.split(',').some((id) => this.recipients.includes(id)));
         },
+        get shownCount() {
+            return [...this.$refs.list.children].filter((el) => this.shows(el)).length;
+        },
         get noneShown() {
-            return ![...this.$refs.list.children].some((el) => this.shows(el));
+            return this.shownCount === 0;
+        },
+        get filtered() {
+            return this.recipients.length > 0 || this.status === 'reserved';
+        },
+        get summaryClass() {
+            return this.filtered ? 'active' : '';
+        },
+        get summary() {
+            const count = this.shownCount;
+            if (!this.filtered) {
+                return this.status === 'all'
+                    ? `${count} ${count === 1 ? 'Wunsch' : 'Wünsche'}`
+                    : `${count} ${count === 1 ? 'verfügbarer Wunsch' : 'verfügbare Wünsche'}`;
+            }
+            const filters = [];
+            if (this.recipients.length > 0) {
+                filters.push('für ' + this.recipientNames.filter((r) => this.recipients.includes(r.id)).map((r) => r.name).join(' oder '));
+            }
+            if (this.status !== 'all') {
+                filters.push(this.status === 'reserved' ? 'nur reservierte' : 'nur verfügbare');
+            }
+            const total = this.$refs.list.children.length;
+            return `Filter aktiv (${filters.join(', ')}): ${count} von ${total} ${total === 1 ? 'Wunsch' : 'Wünschen'}`;
+        },
+        resetFilters() {
+            this.recipients = [];
+            this.status = 'available';
         },
         openReserve(event) {
             this.wishId = event.currentTarget.dataset.id;
@@ -96,6 +147,11 @@ page_start($title, $script);
 </label>
 </div>
 
+<div class="filter-summary" :class="summaryClass">
+    <p role="status" x-text="summary"></p>
+    <button type="button" class="outline" x-show="filtered" x-cloak @click="resetFilters">Filter zurücksetzen</button>
+</div>
+
 <div class="wish-grid" x-ref="list">
 <?php foreach ($wishes as $wish): ?>
     <article class="wish<?= $wish['is_reserved'] ? ' reserved' : '' ?><?= $wish['is_priority'] ? ' priority' : '' ?>"
@@ -106,7 +162,7 @@ page_start($title, $script);
             <?php if ($wish['image_url']): ?>
                 <img src="<?= e($wish['image_url']) ?>" alt="" loading="lazy">
             <?php endif; ?>
-            <?php if ($wish['is_priority']): ?><span class="badge priority">★ Grosser Wunsch</span><?php endif; ?>
+            <?php if ($wish['is_priority']): ?><span class="badge priority"><span aria-hidden="true">★</span> Grosser Wunsch</span><?php endif; ?>
         </div>
         <?= recipient_tags($wish['recipients']) ?>
         <h2><?= e($wish['title']) ?></h2>
@@ -118,10 +174,10 @@ page_start($title, $script);
         <?php endif; ?>
         <footer>
             <?php if ($wish['url']): ?>
-                <a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer" role="button" class="secondary outline">Zum Shop ↗</a>
+                <a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer" role="button" class="secondary outline" aria-label="Zum Shop (öffnet in neuem Tab)">Zum Shop ↗</a>
             <?php endif; ?>
             <?php if ($wish['is_reserved']): ?>
-                <span class="status">✓ Reserviert am <?= e(format_date($wish['reserved_at'], 'd.m.Y')) ?></span>
+                <span class="status"><span aria-hidden="true">✓</span> Reserviert am <?= e(format_date($wish['reserved_at'], 'd.m.Y')) ?></span>
             <?php else: ?>
                 <button type="button" data-id="<?= e($wish['id']) ?>" data-title="<?= e($wish['title']) ?>" @click="openReserve($event)">Reservieren</button>
             <?php endif; ?>
@@ -129,7 +185,7 @@ page_start($title, $script);
     </article>
 <?php endforeach; ?>
 </div>
-<p class="empty" x-show="noneShown">Keine passenden Wünsche gefunden.</p>
+<p class="empty" x-show="noneShown" x-cloak>Keine passenden Wünsche gefunden.</p>
 
 <dialog x-ref="dialog">
     <article>
@@ -141,8 +197,8 @@ page_start($title, $script);
             <?= csrf_field() ?>
             <input type="hidden" name="wish_id" :value="wishId">
             <input type="text" name="website_url" style="display:none;" tabindex="-1" autocomplete="off">
-            <label>Dein Name <input type="text" name="name" required autocomplete="name"></label>
-            <label>Deine E-Mail (optional) <input type="email" name="email" autocomplete="email"></label>
+            <label>Dein Name <input type="text" name="name" value="<?= e($giver['name']) ?>" required autocomplete="name"></label>
+            <label>Deine E-Mail (optional) <input type="email" name="email" value="<?= e($giver['email']) ?>" autocomplete="email"></label>
             <small>Mit E-Mail erhältst du eine Bestätigung mit Link, falls du es dir anders überlegst. Ohne E-Mail können nur die Eltern die Reservation aufheben.</small>
             <label>Notiz an die Eltern (optional) <textarea name="note" rows="2" maxlength="<?= GIVER_NOTE_MAX_LENGTH ?>" placeholder="z.B. Wir bringen es an die Weihnachtsfeier mit."></textarea></label>
             <button type="submit">Reservieren</button>

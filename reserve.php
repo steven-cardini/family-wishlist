@@ -35,6 +35,8 @@ if (!insert_reservation($wishId, $name, $email, $note, $token)) {
     flash('warning', 'Dieser Wunsch ist leider nicht mehr verfügbar.');
     redirect('/');
 }
+// Prefills the next reservation form
+$_SESSION['giver'] = ['name' => $name, 'email' => $email];
 
 $stmt = db()->prepare('SELECT title, description, price, url FROM wishes WHERE id = ?');
 $stmt->execute([$wishId]);

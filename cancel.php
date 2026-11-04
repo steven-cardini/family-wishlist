@@ -51,6 +51,7 @@ page_start('Reservation aufheben');
     <?php elseif (!$hasFlash): ?>
         <p class="flash warning">Dieser Link ist nicht mehr gültig.</p>
     <?php endif; ?>
+    <p><a href="/">Zum Wunschzettel</a></p>
 </article>
 <?php
 page_end();

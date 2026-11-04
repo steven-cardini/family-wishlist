@@ -42,12 +42,14 @@ Each wish entry contains:
 - **Filter Controls:**
   - **Recipient(s):** Checkbox filter, listing only recipients linked to at least one wish; a wish matches if it belongs to any selected recipient (none selected: all).
   - **Status:** "Available only" (default), "Reserved only", "Show all".
+- A summary above the wishes shows the number of shown wishes (screen-reader live region). If a recipient filter or "Reserved only" is active, it is highlighted, names the active filters ("Filter aktiv (für Anna, nur verfügbare): 1 von 5 Wünschen") and offers "Filter zurücksetzen" (back to defaults), so no wishes are hidden by mistake.
+- Filters are kept in `sessionStorage` (survive the reload after a reservation, reset when the tab is closed).
 - Sort order: available before reserved; within each, priority wishes first, then newest first.
 - Reserved wishes are rendered at the bottom, grayed out, with their reservation date ("Reserviert am 24.12.2026"). Giver details are never shown.
 
 ### 2.3 Reservation Workflow (`/reserve`)
 1. Clicking "Reserve Gift" opens a modal.
-2. The giver submits their **Name**, optionally their **Email Address** and optionally a **Note to the parents** (max. 500 characters, e.g. "Wir bringen es an die Weihnachtsfeier mit.").
+2. The giver submits their **Name**, optionally their **Email Address** and optionally a **Note to the parents** (max. 500 characters, e.g. "Wir bringen es an die Weihnachtsfeier mit."). Name and email of the last successful reservation are stored in the session and prefilled.
 3. Upon submission:
    - A row in `reservations` is inserted with `giver_name`, `giver_email`, `giver_note`, `reserved_at` and, with email only, a `cancel_token` (`bin2hex(random_bytes(16))`). Its primary key `wish_id` rejects a second reservation; then (or for an unknown wish) an error is shown.
    - With email: a confirmation email is sent to the giver, containing the cancellation link `/cancel?token=XYZ`. The success message asks to check the spam folder if it does not arrive.
@@ -70,6 +72,8 @@ Each wish entry contains:
 
 ### 2.7 Layout
 - Mobile-first: all pages, including `/admin`, work on phones (from 360 px width) and on larger screens, without horizontal scrolling and with touch-friendly controls.
+- Theme: follows the device's light/dark setting. A toggle on every page overrides it; the choice is stored in the `theme` cookie (`light` or `dark`, 1 year) and rendered server-side as `<html data-theme>`, so there is no flash of the wrong theme. Choosing the device's theme deletes the cookie (follows the device again).
+- Accessibility: text keeps WCAG AA contrast (4.5:1) in both themes, including reserved wishes. Decorative symbols (★, ✓) are hidden from screen readers; shop links announce that they open in a new tab.
 
 ### 2.8 General Behavior
 - Form submissions redirect back with a success or warning message (Post/Redirect/Get).

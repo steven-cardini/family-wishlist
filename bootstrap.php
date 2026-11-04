@@ -33,6 +33,31 @@ const RECIPIENT_COLORS = [
 // Hash of the honeypot's inline style "display:none;"
 const HONEYPOT_STYLE_HASH = 'sha256-0EZqoz+oBhx7gF4nvY2bSqoGyy4zLjNF+SDQXGp/ZrY=';
 const GIVER_NOTE_MAX_LENGTH = 500;
+const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3ClinearGradient id='g' x2='1' y2='1'%3E%3Cstop stop-color='%23e0608c'/%3E%3Cstop offset='1' stop-color='%23a1214f'/%3E%3C/linearGradient%3E%3Crect width='24' height='24' rx='6' fill='url(%23g)'/%3E%3Cg transform='translate(4.2 4.2) scale(.65)' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='9' rx='1.5'/%3E%3Crect x='3' y='7.5' width='18' height='3.5' rx='1'/%3E%3Cpath d='M12 7.5V20M12 7.5C10.5 4.5 7 4 7 6s2.5 1.5 5 1.5zm0 0c1.5-3 5-3.5 5-1.5s-2.5 1.5-5 1.5z'/%3E%3C/g%3E%3C/svg%3E";
+// Theme toggle: a cookie only stores a choice that differs from the device setting (docs/technical_specification.md, 2.7)
+const THEME_SCRIPT = <<<'JS'
+{
+    const toggle = document.querySelector('.theme-toggle');
+    const root = document.documentElement;
+    const deviceDark = matchMedia('(prefers-color-scheme: dark)');
+    const isDark = () => (root.dataset.theme ? root.dataset.theme === 'dark' : deviceDark.matches);
+    const update = () => toggle.setAttribute('aria-pressed', String(isDark()));
+    toggle.addEventListener('click', () => {
+        const dark = !isDark();
+        if (dark === deviceDark.matches) {
+            delete root.dataset.theme;
+            document.cookie = 'theme=; path=/; max-age=0';
+        } else {
+            root.dataset.theme = dark ? 'dark' : 'light';
+            document.cookie = `theme=${root.dataset.theme}; path=/; max-age=31536000; samesite=lax`;
+        }
+        update();
+    });
+    deviceDark.addEventListener('change', update);
+    update();
+    toggle.hidden = false;
+}
+JS;
 
 $isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 
@@ -282,13 +307,16 @@ function notify_parents(int $wishId, string $subject, string $body): bool
 function page_start(string $title, string $script = ''): void
 {
     $nonce = e(nonce());
+    $theme = $_COOKIE['theme'] ?? '';
     echo '<!doctype html>
-<html lang="de-CH">
+<html lang="de-CH"' . (in_array($theme, ['light', 'dark'], true) ? ' data-theme="' . $theme . '"' : '') . '>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#b02a5b">
 <title>' . e($title) . '</title>
+<link rel="icon" href="' . FAVICON . '">
 <link rel="stylesheet" href="' . PICO_CSS . '" integrity="' . PICO_CSS_SRI . '" crossorigin="anonymous" nonce="' . $nonce . '">
 <link rel="stylesheet" href="/style.css?v=' . filemtime(__DIR__ . '/style.css') . '" nonce="' . $nonce . '">
 ';
@@ -299,6 +327,12 @@ function page_start(string $title, string $script = ''): void
     }
     echo '</head>
 <body>
+<header class="container">
+<button type="button" class="theme-toggle secondary outline" aria-label="Dunkles Design" title="Dunkles Design" hidden>
+<svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+<svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+</button>
+</header>
 <main class="container">
 ' . flash_html();
 }
@@ -306,6 +340,7 @@ function page_start(string $title, string $script = ''): void
 function page_end(): void
 {
     echo '</main>
+<script nonce="' . e(nonce()) . '">' . THEME_SCRIPT . '</script>
 </body>
 </html>
 ';
