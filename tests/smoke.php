@@ -392,7 +392,14 @@ check('filter lists non-parents first, then a separator and parents', $chip($ids
     && $chip($zora) < strpos($page, '<span class="separator" aria-hidden="true"></span>')
     && strpos($page, '<span class="separator"') < $chip($ids['Mama']) && substr_count($page, 'class="separator"') === 1);
 check('wishes for parents only last, also if priority', max(strpos($page, 'Velo'), strpos($page, 'Familienspiel')) < strpos($page, 'Parfum') && strpos($page, 'Parfum') < strpos($page, 'Buch für Mama'));
+admin(['title' => 'Puppe', 'recipients' => [$zora]] + $wishForm);
+admin(['title' => 'Ball', 'recipients' => [$zora]] + $wishForm);
+$page = http('relative', 'GET', '/')['body'];
+check('recipients take turns, newest first', strpos($page, 'Ball') < strpos($page, 'Familienspiel')
+    && strpos($page, 'Familienspiel') < strpos($page, 'Puppe') && strpos($page, 'Puppe') < strpos($page, 'Velo'));
 $wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
+admin(['action' => 'wish_delete', 'id' => $wishIds['Puppe']]);
+admin(['action' => 'wish_delete', 'id' => $wishIds['Ball']]);
 admin(['action' => 'wish_delete', 'id' => $wishIds['Familienspiel']]);
 admin(['action' => 'wish_delete', 'id' => $wishIds['Parfum']]);
 admin(['action' => 'recipient_delete', 'id' => $zora]);

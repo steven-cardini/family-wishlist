@@ -235,14 +235,13 @@ function format_date(?string $utc, string $format = 'd.m.Y H:i'): string
         ->format($format);
 }
 
-/** Wishes in display order, each with 'recipients' (id, name, is_parent, color). */
+/** Wishes in display order (docs/technical_specification.md, 2.2), each with 'recipients' (id, name, is_parent, color). */
 function load_wishes(): array
 {
     $wishes = [];
     $rows = db()->query('SELECT w.*, r.wish_id IS NOT NULL AS is_reserved, r.giver_name, r.giver_email, r.giver_note, r.reserved_at
         FROM wishes w LEFT JOIN reservations r ON r.wish_id = w.id
-        ORDER BY is_reserved, EXISTS (SELECT 1 FROM wish_recipient wr JOIN recipients rc ON rc.id = wr.recipient_id
-            WHERE wr.wish_id = w.id AND rc.is_parent = 0) DESC, w.is_priority DESC, w.created_at DESC, w.id DESC');
+        ORDER BY w.is_priority DESC, w.created_at DESC, w.id DESC');
     foreach ($rows as $wish) {
         $wish['recipients'] = [];
         $wishes[$wish['id']] = $wish;
@@ -252,6 +251,21 @@ function load_wishes(): array
     foreach ($rows as $recipient) {
         $wishes[$recipient['wish_id']]['recipients'][] = $recipient;
     }
+    $positions = [];
+    $sortKeys = [];
+    foreach ($wishes as $id => $wish) {
+        $forChild = in_array(0, array_column($wish['recipients'], 'is_parent'), true);
+        $turn = PHP_INT_MAX;
+        foreach ($wish['recipients'] as $recipient) {
+            if (!$forChild || !$recipient['is_parent']) {
+                $key = $recipient['id'] . '-' . $wish['is_reserved'] . '-' . $wish['is_priority'];
+                $positions[$key] = ($positions[$key] ?? 0) + 1;
+                $turn = min($turn, $positions[$key]);
+            }
+        }
+        $sortKeys[$id] = [$wish['is_reserved'], !$forChild, !$wish['is_priority'], $turn];
+    }
+    uksort($wishes, fn (int $a, int $b): int => $sortKeys[$a] <=> $sortKeys[$b]);
     return $wishes;
 }
 

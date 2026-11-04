@@ -47,7 +47,7 @@ Each wish entry contains:
   - **Status:** "Available only" (default), "Reserved only", "Show all".
 - A summary above the wishes shows the number of shown wishes (screen-reader live region). If a recipient filter or "Reserved only" is active, it is highlighted, names the active filters ("Filter aktiv (für Anna, nur verfügbare): 1 von 5 Wünschen") and offers "Filter zurücksetzen" (back to defaults), so no wishes are hidden by mistake.
 - Filters are kept in `sessionStorage` (survive the reload after a reservation, reset when the tab is closed).
-- Sort order (also in `/admin`): available before reserved; within each, wishes with at least one non-parent recipient before wishes for parents only; within each, priority wishes first, then newest first.
+- Sort order (also in `/admin`): available before reserved; within each, wishes with at least one non-parent recipient before wishes for parents only; within each, priority wishes first; within each group, recipients take turns (each recipient's newest wish, then each one's second newest, …), so the entry order does not favor one child. A wish counts at its earliest turn among its recipients (for wishes with a non-parent, only non-parents count). Same turn: newest first.
 - Reserved wishes are rendered at the bottom, grayed out, with their reservation date ("Reserviert am 24.12.2026"). Giver details are never shown.
 - A "Link teilen" button at the bottom shares the access link (`base_url` + `/?key=...`) via the device's share dialog, or copies it to the clipboard if sharing is not supported. If both fail, the link is shown as text.
 
