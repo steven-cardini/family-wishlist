@@ -126,12 +126,12 @@ function handle_action(string $action, int $id): array
             if (!valid_url($url) || !valid_url($imageUrl)) {
                 return ['warning', 'Links müssen mit http:// oder https:// beginnen.'];
             }
-            $currency = post('currency');
-            if (!in_array($currency, CURRENCIES, true)) {
-                return ['warning', 'Bitte wähle eine Währung.'];
-            }
             // "ca." is added on display (docs/technical_specification.md, 2.1)
             $amount = split_price(preg_replace('/^ca(\.\s*|\s+)/i', '', post('price')))[0];
+            $currency = post('currency');
+            if ($amount !== '' && !in_array($currency, CURRENCIES, true)) {
+                return ['warning', 'Bitte wähle eine Währung.'];
+            }
             $values = [$title, post('description') ?: null, $amount === '' ? null : "$amount $currency",
                 $url ?: null, $imageUrl ?: null, isset($_POST['is_priority']) ? 1 : 0];
             $db->beginTransaction();

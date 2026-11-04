@@ -359,7 +359,9 @@ $page = http('admin', 'GET', "/admin?edit=$book")['body'];
 check('edit form splits price into amount and currency', str_contains($page, 'name="price" value="15–20"') && str_contains($page, '<option selected>EUR</option>'));
 admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'usd 20'] + $wishForm);
 check('typed currency is replaced by the selected one', wish($book)['price'] === '20 CHF');
-check('optional fields stored as NULL', wish($bike)['description'] === null && wish($bike)['price'] === null
+check('wish without price needs no currency', str_contains(admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']]]
+    + array_diff_key($wishForm, ['currency' => ''])), 'Wunsch gespeichert.') && wish($bike)['price'] === null);
+check('optional fields stored as NULL',wish($bike)['description'] === null && wish($bike)['price'] === null
     && wish($bike)['url'] === null && wish($bike)['image_url'] === null);
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
     'url' => 'https://www.amazon.de/dp/B01/ref=sr_1_3?crid=X&keywords=velo&qid=1&th=1&sr=8-3&psc=1#info',
