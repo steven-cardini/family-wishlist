@@ -8,6 +8,7 @@ const TRACKING_PARAMS = '/^(utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|gad_s
     . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid)$/i';
 const AMAZON_TRACKING_PARAMS = '/^(ref|ref_|pd_rd_.*|pf_rd_.*|content-id|crid|dib|dib_tag|keywords|qid|sprefix|sr'
     . '|_encoding|tag|linkcode|linkid|ascsubtag)$/i';
+const CURRENCIES = ['CHF', 'EUR', 'USD'];
 
 /** Removes tracking query parameters (docs/technical_specification.md, 2.1). */
 function clean_url(string $url): string
@@ -22,6 +23,19 @@ function clean_url(string $url): string
             && !($isAmazon && preg_match(AMAZON_TRACKING_PARAMS, $name) === 1);
     });
     return $m[1] . ($params === [] ? '' : '?' . implode('&', $params)) . $m[3];
+}
+
+/** Splits a stored price into [amount, currency]; the first currency is the default. */
+function split_price(string $price): array
+{
+    $currencies = implode('|', CURRENCIES);
+    if (preg_match("/^($currencies)(?![a-z])\\s*(.*)$/i", $price, $m) === 1) {
+        return [$m[2], strtoupper($m[1])];
+    }
+    if (preg_match("/^(.*?)\\s*(?<![a-z])($currencies)$/i", $price, $m) === 1) {
+        return [$m[1], strtoupper($m[2])];
+    }
+    return [$price, CURRENCIES[0]];
 }
 
 function valid_url(string $url): bool
@@ -112,9 +126,13 @@ function handle_action(string $action, int $id): array
             if (!valid_url($url) || !valid_url($imageUrl)) {
                 return ['warning', 'Links müssen mit http:// oder https:// beginnen.'];
             }
+            $currency = post('currency');
+            if (!in_array($currency, CURRENCIES, true)) {
+                return ['warning', 'Bitte wähle eine Währung.'];
+            }
             // "ca." is added on display (docs/technical_specification.md, 2.1)
-            $price = preg_replace('/^ca(\.\s*|\s+)/i', '', post('price'));
-            $values = [$title, post('description') ?: null, $price ?: null,
+            $amount = split_price(preg_replace('/^ca(\.\s*|\s+)/i', '', post('price')))[0];
+            $values = [$title, post('description') ?: null, $amount === '' ? null : "$amount $currency",
                 $url ?: null, $imageUrl ?: null, isset($_POST['is_priority']) ? 1 : 0];
             $db->beginTransaction();
             try {
@@ -242,6 +260,7 @@ $editId = (int)($_GET['edit'] ?? 0);
 $edit = $wishes[$editId] ?? ['id' => 0, 'title' => '', 'description' => '', 'price' => '', 'url' => '',
     'image_url' => '', 'is_priority' => 0, 'recipients' => []];
 $editRecipientIds = array_column($edit['recipients'], 'id');
+[$editAmount, $editCurrency] = split_price((string)$edit['price']);
 ?>
 <h1>Verwaltung</h1>
 <form method="post" action="/admin">
@@ -261,7 +280,15 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
         <input type="hidden" name="id" value="<?= e($edit['id']) ?>">
         <label>Titel <input type="text" name="title" value="<?= e($edit['title']) ?>" required></label>
         <label>Beschreibung (optional) <textarea name="description" rows="3"><?= e($edit['description']) ?></textarea></label>
-        <label>Ungefährer Preis (optional) <input type="text" name="price" value="<?= e($edit['price']) ?>" placeholder="30 CHF"></label>
+        <label for="price">Ungefährer Preis (optional)</label>
+        <div role="group" class="price">
+            <input type="text" id="price" name="price" value="<?= e($editAmount) ?>" placeholder="30">
+            <select name="currency" aria-label="Währung">
+                <?php foreach (CURRENCIES as $currency): ?>
+                    <option<?= $currency === $editCurrency ? ' selected' : '' ?>><?= e($currency) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <label>Shop-Link (optional) <input type="url" name="url" value="<?= e($edit['url']) ?>" placeholder="https://"></label>
         <label>Bild-Link (optional) <input type="url" name="image_url" value="<?= e($edit['image_url']) ?>" placeholder="https://"></label>
         <fieldset>

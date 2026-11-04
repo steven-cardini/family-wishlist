@@ -415,3 +415,8 @@ dialog small {
 .audit small {
   overflow-wrap: anywhere;
 }
+
+.price select {
+  flex: 0 0 auto;
+  width: auto;
+}

@@ -337,7 +337,7 @@ check('new recipient form preselects least used color', str_contains($page, 'val
 check('recipient delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="recipient_delete"'));
 
 // 2.1: wishes
-$wishForm = ['action' => 'wish_save', 'description' => '', 'price' => '', 'url' => '', 'image_url' => ''];
+$wishForm = ['action' => 'wish_save', 'description' => '', 'price' => '', 'currency' => 'CHF', 'url' => '', 'image_url' => ''];
 check('wish without recipient is rejected', str_contains(admin($wishForm + ['title' => 'X']), 'mindestens einen Empfänger'));
 check('javascript: URL is rejected', str_contains(admin(['url' => 'javascript:alert(1)', 'title' => 'X', 'recipients' => [$ids['Kind']]] + $wishForm), 'http://'));
 check('unknown recipient is rejected', str_contains(admin(['title' => 'X', 'recipients' => [999]] + $wishForm), 'Ungültiger Wunsch oder Empfänger'));
@@ -350,6 +350,15 @@ $wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
 [$lego, $book, $bike] = [$wishIds['Lego <b>Set</b>'], $wishIds['Buch für Mama'], $wishIds['Velo']];
 check('wishes created with recipients', count($wishIds) === 3 && count(q('SELECT * FROM wish_recipient')) === 3);
 check('leading "ca." is removed from price', wish($lego)['price'] === '30 CHF' && wish($book)['price'] === '20 CHF');
+check('new wish form preselects CHF', str_contains(http('admin', 'GET', '/admin')['body'], '<option selected>CHF</option>'));
+check('invalid currency is rejected', str_contains(admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']],
+    'price' => '20', 'currency' => 'GBP'] + $wishForm), 'Währung') && wish($book)['price'] === '20 CHF');
+admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'ca. 15–20', 'currency' => 'EUR'] + $wishForm);
+check('selected currency is appended to price', wish($book)['price'] === '15–20 EUR');
+$page = http('admin', 'GET', "/admin?edit=$book")['body'];
+check('edit form splits price into amount and currency', str_contains($page, 'name="price" value="15–20"') && str_contains($page, '<option selected>EUR</option>'));
+admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'usd 20'] + $wishForm);
+check('typed currency is replaced by the selected one', wish($book)['price'] === '20 CHF');
 check('optional fields stored as NULL', wish($bike)['description'] === null && wish($bike)['price'] === null
     && wish($bike)['url'] === null && wish($bike)['image_url'] === null);
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
