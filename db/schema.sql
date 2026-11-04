@@ -18,13 +18,18 @@ price TEXT,
 url TEXT,
 image_url TEXT,
 is_priority INTEGER NOT NULL DEFAULT 0,
-is_reserved INTEGER NOT NULL DEFAULT 0,
-giver_name TEXT,
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- At most one reservation per wish
+CREATE TABLE reservations (
+wish_id INTEGER PRIMARY KEY,
+giver_name TEXT NOT NULL,
 giver_email TEXT,
 giver_note TEXT,
-reserved_at DATETIME,
-cancel_token TEXT UNIQUE,
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+reserved_at DATETIME NOT NULL,
+cancel_token TEXT UNIQUE, -- Only for givers with email
+FOREIGN KEY (wish_id) REFERENCES wishes(id) ON DELETE CASCADE
 );
 
 -- Many-to-Many: Wishes <-> Recipients

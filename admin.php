@@ -133,16 +133,12 @@ function handle_action(string $action, int $id): array
             if ($note === false) {
                 return ['warning', 'Die Notiz darf höchstens ' . GIVER_NOTE_MAX_LENGTH . ' Zeichen lang sein.'];
             }
-            $stmt = $db->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, giver_note = ?,
-                reserved_at = ?, cancel_token = NULL WHERE id = ? AND is_reserved = 0');
-            $stmt->execute([$name, $email ?: null, $note !== '' ? $note : null, gmdate('Y-m-d H:i:s'), $id]);
-            return $stmt->rowCount() === 1
+            return insert_reservation($id, $name, $email, $note, null)
                 ? ['success', 'Wunsch reserviert.']
                 : ['warning', 'Dieser Wunsch ist bereits reserviert.'];
 
         case 'wish_unreserve':
-            $db->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, giver_note = NULL,
-                reserved_at = NULL, cancel_token = NULL WHERE id = ?')->execute([$id]);
+            $db->prepare('DELETE FROM reservations WHERE wish_id = ?')->execute([$id]);
             return ['success', 'Reservation entfernt.'];
 
         case 'recipient_save':

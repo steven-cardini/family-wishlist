@@ -31,10 +31,7 @@ if ($note === false) {
 
 // Without email there is no cancellation link (docs/technical_specification.md, 2.3)
 $token = $email !== '' ? bin2hex(random_bytes(16)) : null;
-$stmt = db()->prepare('UPDATE wishes SET is_reserved = 1, giver_name = ?, giver_email = ?, giver_note = ?, reserved_at = ?,
-    cancel_token = ? WHERE id = ? AND is_reserved = 0');
-$stmt->execute([$name, $email ?: null, $note !== '' ? $note : null, gmdate('Y-m-d H:i:s'), $token, $wishId]);
-if ($stmt->rowCount() !== 1) {
+if (!insert_reservation($wishId, $name, $email, $note, $token)) {
     flash('warning', 'Dieser Wunsch ist leider nicht mehr verfügbar.');
     redirect('/');
 }

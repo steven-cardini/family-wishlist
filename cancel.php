@@ -8,16 +8,16 @@ $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 $token = $isPost ? ($_POST['token'] ?? '') : ($_GET['token'] ?? '');
 $wish = false;
 if (is_string($token) && preg_match('/^[0-9a-f]{32}$/', $token)) {
-    $stmt = db()->prepare('SELECT id, title, giver_name, giver_email FROM wishes WHERE cancel_token = ?');
+    $stmt = db()->prepare('SELECT w.id, w.title, r.giver_name, r.giver_email FROM reservations r
+        JOIN wishes w ON w.id = r.wish_id WHERE r.cancel_token = ?');
     $stmt->execute([$token]);
     $wish = $stmt->fetch();
 }
 
 if ($isPost) {
     if ($wish) {
-        $stmt = db()->prepare('UPDATE wishes SET is_reserved = 0, giver_name = NULL, giver_email = NULL, giver_note = NULL,
-            reserved_at = NULL, cancel_token = NULL WHERE id = ? AND cancel_token = ?');
-        $stmt->execute([$wish['id'], $token]);
+        $stmt = db()->prepare('DELETE FROM reservations WHERE cancel_token = ?');
+        $stmt->execute([$token]);
         if ($stmt->rowCount() === 1) {
             $giver = $wish['giver_name'];
             $sent = notify_parents(

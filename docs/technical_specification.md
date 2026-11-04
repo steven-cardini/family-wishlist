@@ -16,7 +16,7 @@ UI and email language: **German** (Swiss spelling without "ß", informal "du").
 ### 1.2 Givers
 - Relatives or friends viewing the wishlist and reserving items.
 - Require **no user account or registration**.
-- Provide their name, optionally their email address and a note to the parents at the moment of reservation (stored on the wish, no own table).
+- Provide their name, optionally their email address and a note to the parents at the moment of reservation (stored in the reservation, no giver table).
 
 ### 1.3 Administrators (Parents)
 - Access `/admin`, authenticated via a central admin password (stored as hash in `config.php`).
@@ -49,8 +49,7 @@ Each wish entry contains:
 1. Clicking "Reserve Gift" opens a modal.
 2. The giver submits their **Name**, optionally their **Email Address** and optionally a **Note to the parents** (max. 500 characters, e.g. "Wir bringen es an die Weihnachtsfeier mit.").
 3. Upon submission:
-   - The wish is reserved only if still available (`UPDATE ... WHERE id = ? AND is_reserved = 0`); otherwise an error is shown.
-   - `is_reserved = 1`, `giver_name`, `giver_email`, `giver_note`, `reserved_at` and, with email only, a `cancel_token` (`bin2hex(random_bytes(16))`) are stored.
+   - A row in `reservations` is inserted with `giver_name`, `giver_email`, `giver_note`, `reserved_at` and, with email only, a `cancel_token` (`bin2hex(random_bytes(16))`). Its primary key `wish_id` rejects a second reservation; then (or for an unknown wish) an error is shown.
    - With email: a confirmation email is sent to the giver, containing the cancellation link `/cancel?token=XYZ`. The success message asks to check the spam folder if it does not arrive.
    - Without email: no confirmation and no cancellation link; only admins can remove the reservation (the form says so).
    - Parents are notified according to Section 5.
@@ -58,7 +57,7 @@ Each wish entry contains:
 ### 2.4 Cancellation Workflow (`/cancel`)
 - Requires no access key: the secret `cancel_token` is the authorization.
 - `GET /cancel?token=XYZ` shows the wish and a "Confirm cancellation" button. It never changes data (email link scanners open links automatically).
-- `POST /cancel` with a valid token resets `is_reserved = 0`, clears giver details and token, and shows a confirmation.
+- `POST /cancel` with a valid token deletes the reservation and shows a confirmation.
 - Parents are notified according to Section 5.
 
 ### 2.5 Admin Manual Reservation
@@ -141,6 +140,7 @@ The SQLite database schema and foreign key relations are defined exclusively in:
 ### Key Entities & Relations
 - `recipients`: Family members who receive gifts. A recipient still linked to a wish cannot be deleted.
 - `wishes`: Main wishlist items.
+- `reservations`: At most one per wish (primary key `wish_id`); a wish is reserved if it has one. Deleted with its wish.
 - `wish_recipient`: Junction table mapping multi-recipient relationships to `wishes`.
 - `login_failures`: Failed login attempts for throttling.
 

@@ -212,7 +212,8 @@ function q(string $sql, array $params = []): array
 
 function wish(int $id): array
 {
-    return q('SELECT * FROM wishes WHERE id = ?', [$id])[0] ?? [];
+    return q('SELECT w.*, r.*, r.wish_id IS NOT NULL AS is_reserved FROM wishes w
+        LEFT JOIN reservations r ON r.wish_id = w.id WHERE w.id = ?', [$id])[0] ?? [];
 }
 
 /** Returns and removes received mails: [['to' => [...], 'from' => ..., 'subject' => ..., 'body' => ...]]. */
@@ -365,6 +366,8 @@ check('parent mail names giver, wish, recipients and note', str_contains(str_rep
 
 check('reserving a reserved wish fails', str_contains(reserve($lego, 'Onkel Max', 'max@example.com'), 'nicht mehr verfügbar'));
 check('first reservation is kept, no mails', wish($lego)['giver_name'] === 'Tante Erika' && take_mails() === []);
+check('reserving an unknown wish fails', str_contains(reserve(999, 'Onkel Max', 'max@example.com'), 'nicht mehr verfügbar')
+    && q('SELECT * FROM reservations WHERE wish_id = 999') === [] && take_mails() === []);
 
 reserve($book, 'Onkel Max', 'max@example.com', ['note' => 'Bringe ich mit']);
 check('parent own wish: no notification to that parent', recipients_of(take_mails()) === ['max@example.com', 'papa@example.com']);
@@ -436,7 +439,8 @@ check('linked recipient cannot be deleted', str_contains(admin(['action' => 'rec
 admin(['action' => 'recipient_delete', 'id' => $ids['Oma']]);
 check('unlinked recipient deleted', count(q('SELECT * FROM recipients')) === 3);
 admin(['action' => 'wish_delete', 'id' => $book]);
-check('reserved wish deleted without mails', wish($book) === [] && q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book]) === [] && take_mails() === []);
+check('reserved wish deleted with its reservation, without mails', wish($book) === [] && q('SELECT * FROM wish_recipient WHERE wish_id = ?', [$book]) === []
+    && q('SELECT * FROM reservations WHERE wish_id = ?', [$book]) === [] && take_mails() === []);
 
 // 7.2: logout keeps access key authorization, admin login expires after 4 hours
 $csrf = csrf('relative', '/');

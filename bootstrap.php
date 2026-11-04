@@ -107,6 +107,23 @@ function post_giver_note(string $key): string|false
     return mb_strlen($note) <= GIVER_NOTE_MAX_LENGTH ? $note : false;
 }
 
+/** False if the wish is already reserved or does not exist. */
+function insert_reservation(int $wishId, string $name, string $email, string $note, ?string $cancelToken): bool
+{
+    try {
+        db()->prepare('INSERT INTO reservations (wish_id, giver_name, giver_email, giver_note, reserved_at, cancel_token)
+            VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$wishId, $name, $email ?: null, $note !== '' ? $note : null, gmdate('Y-m-d H:i:s'), $cancelToken]);
+        return true;
+    } catch (PDOException $e) {
+        // 23000: constraint violation (primary key or foreign key)
+        if ($e->getCode() !== '23000') {
+            throw $e;
+        }
+        return false;
+    }
+}
+
 function redirect(string $path): never
 {
     header('Location: ' . $path, true, 303);
@@ -187,7 +204,9 @@ function format_date(?string $utc, string $format = 'd.m.Y H:i'): string
 function load_wishes(): array
 {
     $wishes = [];
-    $rows = db()->query('SELECT * FROM wishes ORDER BY is_reserved, is_priority DESC, created_at DESC, id DESC');
+    $rows = db()->query('SELECT w.*, r.wish_id IS NOT NULL AS is_reserved, r.giver_name, r.giver_email, r.giver_note, r.reserved_at
+        FROM wishes w LEFT JOIN reservations r ON r.wish_id = w.id
+        ORDER BY is_reserved, w.is_priority DESC, w.created_at DESC, w.id DESC');
     foreach ($rows as $wish) {
         $wish['recipients'] = [];
         $wishes[$wish['id']] = $wish;
