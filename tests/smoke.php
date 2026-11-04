@@ -370,6 +370,11 @@ check('tracking parameters are removed from URLs', wish($bike)['url'] === 'https
     && wish($bike)['image_url'] === 'https://img.example.com/velo.jpg?w=800&sr=1');
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']], 'url' => 'https://shop.example.com/velo?utm_source=a&fbclid=b'] + $wishForm);
 check('URL without remaining parameters has no "?"', wish($bike)['url'] === 'https://shop.example.com/velo');
+admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
+    'url' => 'https://nalda.ch/products/9783551281524?tm=tt&ap=gads&aaid=adauAB6CZNUAT',
+    'image_url' => 'https://img.example.com/velo.jpg?tm=1&ap=2'] + $wishForm);
+check('shop-specific tracking parameters are removed only on that shop', wish($bike)['url'] === 'https://nalda.ch/products/9783551281524'
+    && wish($bike)['image_url'] === 'https://img.example.com/velo.jpg?tm=1&ap=2');
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']]] + $wishForm);
 
 // 2.2: wishlist page

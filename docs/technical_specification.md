@@ -35,7 +35,7 @@ Each wish entry contains:
 - **Price (optional):** Freeform string (e.g., "30 CHF", "20–30 EUR"), always displayed with a "ca." prefix. The admin enters the amount as free text and selects the currency (CHF default, EUR, USD), which is appended on save. A leading "ca." and a typed currency code are removed from the amount.
 - **Webshop URL (optional):** Direct link to the online store item (`http(s)://` only).
 - **Image URL (optional):** Direct link to an image hosted on the webshop (`http(s)://` only). Without an image, or if it fails to load, a gift icon is shown.
-- Known tracking query parameters (e.g. `utm_*`, `gclid`, `fbclid`, `srsltid`; on Amazon also `ref`, `qid`, `tag`, …) are removed from both URLs on save. All other parameters are kept, as shops and image hosts may need them. The full list is in `admin.php`.
+- Known tracking query parameters (e.g. `utm_*`, `gclid`, `fbclid`, `srsltid`; on Amazon also `ref`, `qid`, `tag`, …; on nalda.ch `tm`, `ap`, `aaid`) are removed from both URLs on save. All other parameters are kept, as shops and image hosts may need them. The full list is in `admin.php`.
 - **Priority Flag (`is_priority`):** Shown as "Grosser Wunsch" (badge and highlighted card).
 - **Recipients:** At least one family member, via junction table (`wish_recipient`), shown as name tags in the recipient's color.
 

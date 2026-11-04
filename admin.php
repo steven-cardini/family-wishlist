@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
-const TRACKING_PARAMS = '/^(utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|gad_source|gad_campaignid|msclkid|yclid|twclid'
-    . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid)$/i';
-const AMAZON_TRACKING_PARAMS = '/^(ref|ref_|pd_rd_.*|pf_rd_.*|content-id|crid|dib|dib_tag|keywords|qid|sprefix|sr'
-    . '|_encoding|tag|linkcode|linkid|ascsubtag)$/i';
+/** Host pattern => tracking parameter pattern; '/^/' matches all hosts. */
+const TRACKING_PARAMS = [
+    '/^/' => '/^(utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|gad_source|gad_campaignid|msclkid|yclid|twclid'
+        . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid)$/i',
+    '/(^|\.)amazon\.[a-z.]+$/i' => '/^(ref|ref_|pd_rd_.*|pf_rd_.*|content-id|crid|dib|dib_tag|keywords|qid|sprefix|sr'
+        . '|_encoding|tag|linkcode|linkid|ascsubtag)$/i',
+    '/(^|\.)nalda\.ch$/i' => '/^(tm|ap|aaid)$/i',
+];
 const CURRENCIES = ['CHF', 'EUR', 'USD'];
 
 /** Removes tracking query parameters (docs/technical_specification.md, 2.1). */
@@ -16,11 +20,17 @@ function clean_url(string $url): string
     if (preg_match('/^([^?#]*)\?([^#]*)(.*)$/s', $url, $m) !== 1) {
         return $url;
     }
-    $isAmazon = preg_match('/(^|\.)amazon\.[a-z.]+$/i', (string)parse_url($url, PHP_URL_HOST)) === 1;
-    $params = array_filter(explode('&', $m[2]), function (string $param) use ($isAmazon): bool {
+    $host = (string)parse_url($url, PHP_URL_HOST);
+    $patterns = array_filter(TRACKING_PARAMS, fn (string $hostPattern): bool => preg_match($hostPattern, $host) === 1,
+        ARRAY_FILTER_USE_KEY);
+    $params = array_filter(explode('&', $m[2]), function (string $param) use ($patterns): bool {
         $name = rawurldecode(explode('=', $param, 2)[0]);
-        return $name !== '' && preg_match(TRACKING_PARAMS, $name) !== 1
-            && !($isAmazon && preg_match(AMAZON_TRACKING_PARAMS, $name) === 1);
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $name) === 1) {
+                return false;
+            }
+        }
+        return $name !== '';
     });
     return $m[1] . ($params === [] ? '' : '?' . implode('&', $params)) . $m[3];
 }
