@@ -46,6 +46,7 @@ Each wish entry contains:
 - Filters are kept in `sessionStorage` (survive the reload after a reservation, reset when the tab is closed).
 - Sort order: available before reserved; within each, priority wishes first, then newest first.
 - Reserved wishes are rendered at the bottom, grayed out, with their reservation date ("Reserviert am 24.12.2026"). Giver details are never shown.
+- A "Link teilen" button at the bottom shares the access link (`base_url` + `/?key=...`) via the device's share dialog, or copies it to the clipboard if sharing is not supported. If both fail, the link is shown as text.
 
 ### 2.3 Reservation Workflow (`/reserve`)
 1. Clicking "Reserve Gift" opens a modal.
@@ -88,10 +89,10 @@ Each wish entry contains:
 ## 3. Security, Anti-Spam & Privacy Architecture
 
 ### 3.1 URL Key Protection (Access Key)
-- Relatives access the site via a secret shared URL: `https://example.com/?key=YOUR_SECRET_KEY`.
-- The key is compared with `hash_equals()`. On success: `session_regenerate_id(true)`, `$_SESSION['access_key_hash'] = hash('sha256', access_key)`, redirect to `/` (removes the key from the URL).
+- Relatives access the site via a shared URL `https://example.com/?key=YOUR_SECRET_KEY`, or by entering the key (called "Code" in the UI) on the start page. It may be a memorable phrase so it can be passed on by phone.
+- The key is trimmed (phone keyboards add spaces) and compared with `hash_equals()`. On success: `session_regenerate_id(true)`, `$_SESSION['access_key_hash'] = hash('sha256', access_key)`, redirect to `/` (removes the key from the URL).
 - A session is authorized only while its `access_key_hash` matches the current `access_key`. Changing the key in `config.php` therefore revokes all existing access.
-- Unauthenticated requests display a simple access key entry form.
+- Unauthenticated requests display a simple key entry form with the hint to ask the parents for the code or link.
 - An admin session (`$_SESSION['is_admin']`) also counts as authorized.
 
 ### 3.2 Sessions

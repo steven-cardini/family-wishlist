@@ -6,7 +6,7 @@ require __DIR__ . '/bootstrap.php';
 
 $error = '';
 if (isset($_GET['key'])) {
-    $key = is_string($_GET['key']) ? $_GET['key'] : '';
+    $key = is_string($_GET['key']) ? trim($_GET['key']) : '';
     if (login_throttled()) {
         $error = 'Zu viele Fehlversuche. Bitte versuche es später nochmals.';
     } elseif ($key !== '' && hash_equals((string)config('access_key'), $key)) {
@@ -16,7 +16,7 @@ if (isset($_GET['key'])) {
         redirect('/');
     } else {
         record_login_failure();
-        $error = 'Dieser Zugangsschlüssel ist ungültig.';
+        $error = 'Dieser Code ist ungültig.';
     }
 }
 
@@ -26,10 +26,10 @@ if ($error !== '' || !has_access()) {
     ?>
 <article class="narrow">
     <h1><?= e($title) ?></h1>
-    <p class="lead">Gib den Zugangsschlüssel ein, den du erhalten hast.</p>
+    <p class="lead">Gib den Code ein. Falls du keinen hast, frag die Eltern nach dem Code oder Link zum Wunschzettel.</p>
     <?php if ($error !== ''): ?><p class="flash warning" role="alert"><?= e($error) ?></p><?php endif; ?>
     <form method="get" action="/">
-        <label>Zugangsschlüssel <input type="password" name="key" required autocomplete="current-password"></label>
+        <label>Code <input type="text" name="key" required autocomplete="off" autocapitalize="none" spellcheck="false"></label>
         <button type="submit">Öffnen</button>
     </form>
 </article>
@@ -42,6 +42,7 @@ $recipients = db()->query('SELECT id, name, color FROM recipients WHERE id IN (S
     ORDER BY name')->fetchAll();
 $wishes = load_wishes();
 $giver = $_SESSION['giver'] ?? ['name' => '', 'email' => ''];
+$shareUrl = config('base_url') . '/?key=' . rawurlencode((string)config('access_key'));
 
 $script = <<<'JS'
 document.addEventListener('error', (event) => {
@@ -54,6 +55,7 @@ document.addEventListener('alpine:init', () => {
         recipientNames: [],
         wishId: '',
         wishTitle: '',
+        shareStatus: '',
         init() {
             this.recipientNames = [...this.$el.querySelectorAll('.chips input')]
                 .map((input) => ({ id: input.value, name: input.parentElement.textContent.trim() }));
@@ -118,6 +120,19 @@ document.addEventListener('alpine:init', () => {
         },
         closeReserve() {
             this.$refs.dialog.close();
+        },
+        async share(event) {
+            const url = event.currentTarget.dataset.url;
+            try {
+                if (navigator.share) {
+                    await navigator.share({ title: document.title, url });
+                } else {
+                    await navigator.clipboard.writeText(url);
+                    this.shareStatus = 'Link kopiert.';
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') this.shareStatus = `Kopiere diesen Link: ${url}`;
+            }
         },
     }));
 });
@@ -186,6 +201,12 @@ page_start($title, $script);
 <?php endforeach; ?>
 </div>
 <p class="empty" x-show="noneShown" x-cloak>Keine passenden Wünsche gefunden.</p>
+
+<section class="share">
+    <p>Möchte noch jemand etwas schenken? Teile den Wunschzettel.</p>
+    <button type="button" class="secondary outline" data-url="<?= e($shareUrl) ?>" @click="share($event)">Link teilen</button>
+    <p role="status" x-text="shareStatus"></p>
+</section>
 
 <dialog x-ref="dialog">
     <article>

@@ -265,7 +265,8 @@ check('nosniff, no-referrer, X-Robots-Tag headers', str_contains($r['headers'], 
 check('no HSTS over HTTP', !str_contains($r['headers'], 'Strict-Transport-Security'));
 check('meta robots noindex', str_contains($r['body'], '<meta name="robots" content="noindex, nofollow">'));
 check('site title on key form', str_contains($r['body'], '<title>' . SITE_TITLE . '</title>') && str_contains($r['body'], '<h1>' . SITE_TITLE . '</h1>'));
-check('anonymous visitor gets key form and no session', str_contains($r['body'], 'name="key"')
+check('anonymous visitor gets key form with hint and no session', str_contains($r['body'], 'name="key"')
+    && str_contains($r['body'], 'frag die Eltern nach dem Code oder Link zum Wunschzettel')
     && !str_contains($r['body'], 'x-data') && !str_contains($r['headers'], 'Set-Cookie'));
 check('theme follows device without cookie', str_contains($r['body'], '<html lang="de-CH">'));
 check('theme toggle hidden until its script runs', str_contains($r['body'], '<button type="button" class="theme-toggle secondary outline" aria-label="Dunkles Design" title="Dunkles Design" hidden>')
@@ -286,10 +287,13 @@ $r = http('relative', 'GET', '/?key=wrong');
 check('wrong key is rejected', str_contains($r['body'], 'ungültig') && !str_contains($r['body'], 'x-data'));
 $r = http('relative', 'GET', '/?key=' . $accessKey);
 check('correct key redirects to /', $r['status'] === 303 && str_contains($r['headers'], "Location: /\r\n"));
+check('key with surrounding spaces is accepted', http('spaces', 'GET', '/?key=%20' . $accessKey . '%20')['status'] === 303);
 check('session cookie: 1 year, HttpOnly, SameSite=Lax, not Secure over HTTP',
     preg_match('/^Set-Cookie: PHPSESSID=[^\r]*Max-Age=31536000[^\r]*; HttpOnly; SameSite=Lax\r$/mi', $r['headers']) === 1
     && !preg_match('/^Set-Cookie:[^\r]*Secure/mi', $r['headers']));
-check('relative sees wishlist', str_contains(http('relative', 'GET', '/')['body'], 'x-data="wishlist"'));
+$page = http('relative', 'GET', '/')['body'];
+check('relative sees wishlist', str_contains($page, 'x-data="wishlist"'));
+check('share button with access link', str_contains($page, 'data-url="' . $base . '/?key=' . $accessKey . '" @click="share($event)">Link teilen</button>'));
 $relativeCsrf = csrf('relative', '/');
 
 // 7.2: admin authentication

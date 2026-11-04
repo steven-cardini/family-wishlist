@@ -386,3 +386,10 @@ dialog small {
   color: var(--pico-muted-color);
   text-align: center;
 }
+
+.share {
+  margin-top: 2.5rem;
+  color: var(--pico-muted-color);
+  text-align: center;
+  overflow-wrap: anywhere;
+}

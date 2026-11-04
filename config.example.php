@@ -13,8 +13,8 @@ return [
     // Shown as page heading and as sender name and signature of emails
     'site_title' => 'Wunschzettel',
 
-    // Secret for the relatives' link: https://example.com/?key=...
-    // Generate: php -r 'echo bin2hex(random_bytes(24)), "\n";'
+    // Code for relatives, used in their link https://example.com/?key=...
+    // Easy to tell by phone but hard to guess, e.g. two words and a number
     'access_key' => 'change-me',
 
     // Generate: php -r 'echo password_hash(rtrim(fgets(STDIN)), PASSWORD_DEFAULT), "\n";'
