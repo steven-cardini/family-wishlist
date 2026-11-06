@@ -212,9 +212,9 @@ Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp
 ### 7.3 Database Initialization (`db.php`)
 - `db.php` opens the SQLite PDO connection to `data/db.sqlite` (creating `data/` if missing) and sets `PRAGMA foreign_keys = ON` on every connection.
 - If `PRAGMA user_version` is `0`, `db/schema.sql` is executed once inside a `BEGIN IMMEDIATE` transaction (version is re-checked inside the transaction). The schema sets `user_version = 2`.
-- Migration in the same transaction: version `1` → `2` adds `login_attempts.input` and `login_attempts.blocked`.
+- Otherwise, every `db/migrations/<n>.sql` with `n` > `user_version` is executed in ascending order, in the same kind of transaction. Each file sets `user_version = n`.
 - **Reset:** Delete `data/db.sqlite` (e.g., via FTP). It is recreated empty on the next request.
-- Future schema changes: add migration steps keyed on `user_version`.
+- Schema changes: update `db/schema.sql` (including `user_version`) and add `db/migrations/<new version>.sql` with the same change for existing databases.
 
 ### 7.4 Email Error Handling
 - Database reservation state updates take priority.

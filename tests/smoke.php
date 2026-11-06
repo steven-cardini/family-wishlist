@@ -284,7 +284,7 @@ check('theme cookie sets data-theme', str_contains(http('anonymous', 'GET', '/',
     && str_contains(http('anonymous', 'GET', '/', [], 'theme=light')['body'], '<html lang="de-CH" data-theme="light">'));
 check('invalid theme cookie is ignored', str_contains(http('anonymous', 'GET', '/', [], 'theme=%22%3E%3Cb%3E')['body'], '<html lang="de-CH">'));
 check('robots.txt disallows all', http('anonymous', 'GET', '/robots.txt')['body'] === "User-agent: *\nDisallow: /\n");
-foreach (['/data/db.sqlite', '/db/schema.sql', '/docs/technical_specification.md', '/lib/PHPMailer/PHPMailer.php',
+foreach (['/data/db.sqlite', '/db/schema.sql', '/db/migrations/2.sql', '/docs/technical_specification.md', '/lib/PHPMailer/PHPMailer.php',
     '/tests/smoke.php', '/.htaccess', '/config.php', '/bootstrap.php', '/db.php', '/router.php'] as $path) {
     check("$path is forbidden", http('anonymous', 'GET', $path)['status'] === 403);
 }
@@ -293,6 +293,14 @@ check('reserve without access is forbidden', http('anonymous', 'POST', '/reserve
 // 3.1, 3.2: access key and session
 $r = http('relative', 'GET', '/?key=wrong');
 check('wrong key is rejected', str_contains($r['body'], 'ungültig') && !str_contains($r['body'], 'x-data'));
+
+// 7.3: database versions
+$versions = array_map(fn (string $file): int => (int)basename($file, '.sql'), glob("$root/db/migrations/*.sql"));
+check('new database has version of newest migration', (int)q('PRAGMA user_version')[0]['user_version'] === max($versions));
+foreach ($versions as $version) {
+    check("migration $version sets its version", str_contains((string)file_get_contents("$root/db/migrations/$version.sql"), "\nPRAGMA user_version = $version;\n"));
+}
+
 $r = http('relative', 'GET', '/?key=' . $accessKey);
 check('correct key redirects to /', $r['status'] === 303 && str_contains($r['headers'], "Location: /\r\n"));
 check('key with surrounding spaces is accepted', http('spaces', 'GET', '/?key=%20' . $accessKey . '%20')['status'] === 303);

@@ -41,7 +41,8 @@ A lightweight, privacy-conscious, self-hosted web application for managing and s
 ├── robots.txt           # Disallows search engine indexing
 ├── .htaccess            # URL rewrites & file access protection
 ├── data/                # SQLite database & sessions (ignored by Git, auto-created)
-├── db/schema.sql        # Database schema
+├── db/schema.sql        # Database schema (new databases)
+├── db/migrations/       # Schema changes for existing databases (<version>.sql)
 ├── lib/PHPMailer/       # PHPMailer source files (third-party, LGPL)
 ├── tests/smoke.php      # Automated end-to-end tests
 └── docs/                # Documentation (private_deployment.md: own deployment notes, ignored by Git)

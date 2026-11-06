@@ -19,16 +19,18 @@ function db(): PDO
     $pdo->exec('PRAGMA foreign_keys = ON');
 
     // See docs/technical_specification.md, 7.3
-    if ((int)$pdo->query('PRAGMA user_version')->fetchColumn() < 2) {
+    $migration = fn (int $version): string => __DIR__ . "/db/migrations/$version.sql";
+    $version = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
+    if ($version === 0 || is_file($migration($version + 1))) {
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $version = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
             if ($version === 0) {
                 $pdo->exec((string)file_get_contents(__DIR__ . '/db/schema.sql'));
-            } elseif ($version === 1) {
-                $pdo->exec('ALTER TABLE login_attempts ADD COLUMN input TEXT;
-                    ALTER TABLE login_attempts ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0;
-                    PRAGMA user_version = 2');
+            } else {
+                for ($next = $version + 1; is_file($migration($next)); $next++) {
+                    $pdo->exec((string)file_get_contents($migration($next)));
+                }
             }
             $pdo->exec('COMMIT');
         } catch (Throwable $e) {
