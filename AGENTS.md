@@ -22,6 +22,7 @@ If `php` is not on the `PATH` (e.g., in agent shells), call it by full path: `/o
 ## 3. Mandatory Policies for you as AI agent
 
 - Whenever you present me a solution, prove that this solution actually works.
+- Never commit or push any changes without me explicitly allowing you to do so.
 - Your priorities are correctness, security, best practices, runtime efficiency, code simplicity and "add only the bare minimum", in this order.
 - General language rules:
   - Bare minimum: keep texts as short and concise as possible, while still adding all the information which is absolutely required.

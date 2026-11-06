@@ -12,11 +12,14 @@ declare(strict_types=1);
 [, $port, $dir] = $argv;
 $server = stream_socket_server("tcp://127.0.0.1:$port");
 $count = 0;
+$connections = 0;
+$dropped = [];
 while (true) {
     $conn = @stream_socket_accept($server, 3600);
     if ($conn === false) {
         continue;
     }
+    $connections++;
     fwrite($conn, "220 sink\r\n");
     $to = [];
     while (($line = fgets($conn)) !== false) {
@@ -25,6 +28,11 @@ while (true) {
             fwrite($conn, "250-sink\r\n250 8BITMIME\r\n");
         } elseif ($command === 'RCPT') {
             preg_match('/<([^>]*)>/', $line, $m);
+            // Simulates a broken connection, once per address
+            if (str_starts_with($m[1], 'drop') && !isset($dropped[$m[1]])) {
+                $dropped[$m[1]] = true;
+                break;
+            }
             $to[] = $m[1];
             fwrite($conn, "250 ok\r\n");
         } elseif ($command === 'DATA') {
@@ -34,7 +42,7 @@ while (true) {
                 $data .= $line;
             }
             $file = sprintf('%s/%04d.json', $dir, ++$count);
-            file_put_contents("$file.tmp", json_encode(['to' => $to, 'data' => $data]));
+            file_put_contents("$file.tmp", json_encode(['to' => $to, 'connection' => $connections, 'data' => $data]));
             rename("$file.tmp", $file);
             $to = [];
             fwrite($conn, "250 ok\r\n");
@@ -217,7 +225,7 @@ function wish(int $id): array
         LEFT JOIN reservations r ON r.wish_id = w.id WHERE w.id = ?', [$id])[0] ?? [];
 }
 
-/** Returns and removes received mails: [['to' => [...], 'from' => ..., 'subject' => ..., 'body' => ...]]. */
+/** Returns and removes received mails: [['to' => [...], 'connection' => ..., 'from' => ..., 'subject' => ..., 'body' => ...]]. */
 function take_mails(): array
 {
     global $mailDir;
@@ -230,7 +238,7 @@ function take_mails(): array
         if (stripos($head, 'Content-Transfer-Encoding: quoted-printable') !== false) {
             $body = quoted_printable_decode($body);
         }
-        $mails[] = ['to' => $raw['to'], 'from' => $headers['From'] ?? '', 'subject' => $headers['Subject'] ?? '', 'body' => $body];
+        $mails[] = ['to' => $raw['to'], 'connection' => $raw['connection'], 'from' => $headers['From'] ?? '', 'subject' => $headers['Subject'] ?? '', 'body' => $body];
     }
     return $mails;
 }
@@ -432,6 +440,7 @@ check('reservation is stored', $w['is_reserved'] === 1 && $w['giver_name'] === '
 check('note is stored with "\n" line breaks', $w['giver_note'] === "Kommt per Post.\nErika");
 $mails = take_mails();
 check('mails to giver and both parents', recipients_of($mails) === ['erika@example.com', 'mama@example.com', 'papa@example.com']);
+check('mails of one request share one SMTP connection', count(array_unique(array_column($mails, 'connection'))) === 1);
 $giverMail = array_values(array_filter($mails, fn ($m) => $m['to'] === ['erika@example.com']))[0] ?? ['from' => '', 'subject' => '', 'body' => ''];
 check('site title as sender name and signature', $giverMail['from'] === SITE_TITLE . ' <wishlist@example.com>'
     && str_ends_with(rtrim($giverMail['body']), SITE_TITLE));
@@ -490,6 +499,14 @@ check('reservation without email has no token', $w['is_reserved'] === 1 && $w['g
 $mails = take_mails();
 check('without email only parents are notified', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
     && str_contains($mails[0]['body'], 'Nachbarin Lea hat den Wunsch «Lego <b>Set</b>» für Kind reserviert.'));
+
+// 7.4: a failed mail is retried once
+$page = reserve($bike, 'Tante Erika', 'drop@example.com');
+$mails = take_mails();
+check('failed mail is retried and logged', str_contains($page, 'Du erhältst eine Bestätigung')
+    && recipients_of($mails) === ['drop@example.com', 'mama@example.com', 'papa@example.com']
+    && str_contains((string)file_get_contents("$tmp/server.log"), 'Mail to drop@example.com failed (attempt 1)'));
+admin(['action' => 'wish_unreserve', 'id' => $bike]);
 
 // 2.5, 2.6: admin reservations and surprise protection
 check('manual reservation with too long note fails', str_contains(admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'Grosi',

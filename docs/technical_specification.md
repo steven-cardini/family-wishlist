@@ -173,7 +173,7 @@ On every reservation (2.3) and cancellation (2.4) by a giver:
      - **NO:** Notification sent (*"Giver X reserved / cancelled Wish Y for Z"*, Z = all recipients of the wish; on reservation including the note).
      - **YES:** **No notification sent!** (Preserves the surprise for parents' own wishes.)
 
-Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp.from_email`) should belong to the SMTP account to avoid spam filtering.
+Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp.from_email`) should belong to the SMTP account and its domain should publish the DKIM key of the mail server, to avoid spam filtering and rejection of forwarded emails.
 
 ---
 
@@ -206,7 +206,8 @@ Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp
 ### 7.4 Email Error Handling
 - Database reservation state updates take priority.
 - If SMTP email dispatch fails due to connectivity or credentials, the reservation or cancellation MUST still be recorded in SQLite, and a graceful warning message is presented to the user.
-- SMTP timeout is 15 seconds; failures are written to the PHP error log.
+- All emails of a request share one SMTP connection. A failed email is retried once on a new connection.
+- SMTP timeout is 15 seconds; failures are written to the PHP error log with the recipient.
 
 ---
 

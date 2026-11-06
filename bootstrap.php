@@ -286,34 +286,43 @@ function recipient_names(int $wishId): string
     return implode(', ', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+/** Reuses one SMTP connection per request and retries once (docs/technical_specification.md, 7.4). */
 function send_mail(string $to, string $subject, string $body): bool
 {
-    require_once __DIR__ . '/lib/PHPMailer/Exception.php';
-    require_once __DIR__ . '/lib/PHPMailer/PHPMailer.php';
-    require_once __DIR__ . '/lib/PHPMailer/SMTP.php';
-    $smtp = config('smtp');
-    try {
-        $mail = new PHPMailer(true);
-        $mail->isSMTP();
-        $mail->Host = $smtp['host'];
-        $mail->Port = (int)$smtp['port'];
-        $mail->SMTPSecure = $smtp['encryption'];
-        $mail->SMTPAutoTLS = false;
-        $mail->SMTPAuth = $smtp['username'] !== '';
-        $mail->Username = $smtp['username'];
-        $mail->Password = $smtp['password'];
-        $mail->Timeout = 15;
-        $mail->CharSet = PHPMailer::CHARSET_UTF8;
-        $mail->setFrom($smtp['from_email'], (string)config('site_title'));
-        $mail->addAddress($to);
-        $mail->Subject = $subject;
-        $mail->Body = $body . "\n\n" . config('site_title') . "\n";
-        $mail->send();
-        return true;
-    } catch (Throwable $e) {
-        error_log('Mail failed: ' . $e->getMessage());
-        return false;
+    static $mail = null;
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
+        try {
+            if ($mail === null) {
+                require_once __DIR__ . '/lib/PHPMailer/Exception.php';
+                require_once __DIR__ . '/lib/PHPMailer/PHPMailer.php';
+                require_once __DIR__ . '/lib/PHPMailer/SMTP.php';
+                $smtp = config('smtp');
+                $mail = new PHPMailer(true);
+                $mail->isSMTP();
+                $mail->SMTPKeepAlive = true;
+                $mail->Host = $smtp['host'];
+                $mail->Port = (int)$smtp['port'];
+                $mail->SMTPSecure = $smtp['encryption'];
+                $mail->SMTPAutoTLS = false;
+                $mail->SMTPAuth = $smtp['username'] !== '';
+                $mail->Username = $smtp['username'];
+                $mail->Password = $smtp['password'];
+                $mail->Timeout = 15;
+                $mail->CharSet = PHPMailer::CHARSET_UTF8;
+                $mail->setFrom($smtp['from_email'], (string)config('site_title'));
+            }
+            $mail->clearAddresses();
+            $mail->addAddress($to);
+            $mail->Subject = $subject;
+            $mail->Body = $body . "\n\n" . config('site_title') . "\n";
+            $mail->send();
+            return true;
+        } catch (Throwable $e) {
+            error_log("Mail to $to failed (attempt $attempt): " . $e->getMessage());
+            $mail?->smtpClose();
+        }
     }
+    return false;
 }
 
 /** Notifies parents not linked to the wish (docs/technical_specification.md, 5). */
