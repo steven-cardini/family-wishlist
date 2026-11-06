@@ -260,7 +260,7 @@ $accessKey = bin2hex(random_bytes(16));
 write_config($accessKey);
 file_put_contents("$tmp/sink.php", SINK);
 $processes[] = start([PHP_BINARY, "$tmp/sink.php", (string)$smtpPort, $mailDir], $tmp, "$tmp/sink.log");
-$processes[] = start([PHP_BINARY, '-d', 'opcache.enable_cli=0', '-S', "127.0.0.1:$httpPort", 'router.php'], $app, "$tmp/server.log");
+$processes[] = start([PHP_BINARY, '-d', 'opcache.enable=0', '-S', "127.0.0.1:$httpPort", 'router.php'], $app, "$tmp/server.log");
 wait_for_port($smtpPort);
 wait_for_port($httpPort);
 
