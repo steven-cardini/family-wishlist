@@ -504,6 +504,7 @@ check('reservation is removed', $w['is_reserved'] === 0 && $w['giver_name'] === 
     && $w['giver_note'] === null && $w['cancel_token'] === null && $w['reserved_at'] === null);
 $mails = take_mails();
 check('cancel notifies both parents', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
+    && count(array_unique(array_column($mails, 'connection'))) === 1
     && str_contains($mails[0]['body'], 'Tante Erika (erika@example.com) hat die Reservation des Wunsches «Lego <b>Set</b>» für Kind aufgehoben'));
 $r = http('giver', 'GET', "/cancel?token=$token");
 check('used cancel link is invalid, with link to wishlist', str_contains($r['body'], 'nicht mehr gültig') && str_contains($r['body'], '<a href="/">Zum Wunschzettel</a>'));
@@ -520,6 +521,7 @@ check('reservation without email has no token', $w['is_reserved'] === 1 && $w['g
     && $w['giver_note'] === str_replace("\r\n", "\n", $longNote));
 $mails = take_mails();
 check('without email only parents are notified', recipients_of($mails) === ['mama@example.com', 'papa@example.com']
+    && count(array_unique(array_column($mails, 'connection'))) === 1
     && str_contains($mails[0]['body'], 'Nachbarin Lea hat den Wunsch «Lego <b>Set</b>» für Kind reserviert.'));
 
 // 7.4: a failed mail is retried once
@@ -527,6 +529,7 @@ $page = reserve($bike, 'Tante Erika', 'drop@example.com');
 $mails = take_mails();
 check('failed mail is retried and logged', str_contains($page, 'Du erhältst eine Bestätigung')
     && recipients_of($mails) === ['drop@example.com', 'mama@example.com', 'papa@example.com']
+    && count(array_unique(array_column($mails, 'connection'))) === 1
     && str_contains((string)file_get_contents("$tmp/server.log"), 'Mail to drop@example.com failed (attempt 1)'));
 admin(['action' => 'wish_unreserve', 'id' => $bike]);
 
