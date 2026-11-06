@@ -8,6 +8,7 @@
   --pico-card-background-color: light-dark(#fff, #1b1f29);
   --pico-card-sectioning-background-color: light-dark(#fcf8f9, rgb(26 30.5 40.25));
   --pico-card-box-shadow: 0 1px 2px light-dark(rgb(90 40 60 / 6%), rgb(0 0 0 / 20%)), 0 8px 24px light-dark(rgb(90 40 60 / 7%), rgb(0 0 0 / 25%));
+  --pico-muted-color: light-dark(#646b79, #838c9e); /* Dark: lighter than Pico for 4.5:1 on cards */
   --pico-text-selection-color: light-dark(rgb(176 42 91 / 20%), rgb(240 140 176 / 25%));
   --pico-primary: light-dark(#b02a5b, #f08cb0);
   --pico-primary-background: light-dark(#b02a5b, #c0396b);
@@ -530,6 +531,45 @@ nav.chips {
   margin: 0;
 }
 
+/* Summary arrow next to its text */
+.confirm,
+.reservation details {
+  width: fit-content;
+}
+
+/* Touch target of at least 24 px */
+:is(.confirm, .reservation details) > summary {
+  padding-block: 0.25rem;
+}
+
+/* Rarely used: subtle. Pico shows focus by color, so keep it. */
 .confirm > summary {
+  font-size: 0.875rem;
+}
+
+.confirm > summary:not([role], :focus) {
   color: var(--pico-muted-color);
+}
+
+.reservation {
+  margin-bottom: var(--pico-spacing);
+  padding: 0.75rem 1rem;
+  border-radius: var(--pico-border-radius);
+  background: var(--pico-background-color);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.reservation :is(form, details) {
+  margin: 0;
+}
+
+.reservation p {
+  margin-bottom: 0.5rem;
+}
+
+.reservation .label {
+  margin-bottom: 0.25rem;
+  color: var(--pico-muted-color);
+  font-weight: 600;
 }

@@ -565,11 +565,13 @@ check('reserved view: children first, newest reservation first', str_contains($p
     && strpos($page, 'Velo') < strpos($page, 'Lego') && strpos($page, 'Lego') < strpos($page, 'Buch für Mama'));
 check('filter chip counts wishes in current view', str_contains($page, 'class="recipient color-blue">Kind (2)</a>'));
 $reservedAt = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y H:i');
-check('giver of child wish shown with local time and escaped note', str_contains($page, "<p class=\"pre-line\">Reserviert von Grosi, $reservedAt\nNotiz: Per &lt;b&gt;Telefon&lt;/b&gt;</p>"));
+check('giver of child wish shown with local time and escaped note', preg_match('#<p class="label">Reserviert</p>\s*<p>'
+    . preg_quote($reservedAt, '#') . '<br>\s*von <strong>Grosi</strong>\s*<br><span class="pre-line">Notiz: Per &lt;b&gt;Telefon&lt;/b&gt;</span></p>#', $page) === 1);
 check('reservation removal needs confirmation', str_contains($page, '<details class="confirm"><summary>Reservation entfernen</summary><button type="submit" name="action" value="wish_unreserve"'));
 check('wish delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="wish_delete"'));
-check('giver and note of parent wish hidden in details', preg_match('#<details><summary>Reserviert \(Schenkende anzeigen\)</summary><p class="pre-line">Onkel Max \(max@example\.com\), [^<]*\nNotiz: Bringe ich mit</p></details>#', $page) === 1
-    && !str_contains($page, 'Reserviert von Onkel Max'));
+check('giver, note and removal of parent wish hidden in details', preg_match('#<p class="label">Reserviert</p>\s*<details><summary>Schenkende anzeigen</summary>\s*'
+    . '<p>[^<]+<br>\s*von <strong>Onkel Max</strong><br>max@example\.com\s*<br><span class="pre-line">Notiz: Bringe ich mit</span></p>'
+    . '\s*<form method="post">.*?value="wish_unreserve".*?</details>\s*</form>\s*</details>#s', $page) === 1);
 admin(['action' => 'wish_unreserve', 'id' => $bike]);
 check('admin removes reservation and note without mails', wish($bike)['is_reserved'] === 0 && wish($bike)['giver_note'] === null && take_mails() === []);
 check('manual reservation form has note field', str_contains(http('admin', 'GET', '/admin')['body'], '<textarea name="giver_note" rows="2" maxlength="500"></textarea>'));

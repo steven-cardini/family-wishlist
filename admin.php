@@ -425,16 +425,17 @@ $tabs = ['open' => 'Offen (' . count($lists['open']) . ')', 'reserved' => 'Reser
                 </div>
             </div>
             <?php if ($wish['is_reserved']):
-                $giver = $wish['giver_name'] . ($wish['giver_email'] ? ' (' . $wish['giver_email'] . ')' : '')
-                    . ', ' . format_date($wish['reserved_at'])
-                    . ($wish['giver_note'] !== null ? "\nNotiz: " . $wish['giver_note'] : '');
+                $hidden = in_array(1, array_column($wish['recipients'], 'is_parent'), true);
                 ?>
-                <?php if (in_array(1, array_column($wish['recipients'], 'is_parent'), true)): ?>
-                    <details><summary>Reserviert (Schenkende anzeigen)</summary><p class="pre-line"><?= e($giver) ?></p></details>
-                <?php else: ?>
-                    <p class="pre-line">Reserviert von <?= e($giver) ?></p>
-                <?php endif; ?>
-                <?php wish_confirm_form($wish['id'], 'Reservation entfernen', 'Wirklich entfernen', 'wish_unreserve'); ?>
+                <div class="reservation">
+                    <p class="label">Reserviert</p>
+                    <?php if ($hidden): ?><details><summary>Schenkende anzeigen</summary><?php endif; ?>
+                    <p><?= e(format_date($wish['reserved_at'])) ?><br>
+                        von <strong><?= e($wish['giver_name']) ?></strong><?= $wish['giver_email'] ? '<br>' . e($wish['giver_email']) : '' ?>
+                        <?php if ($wish['giver_note'] !== null): ?><br><span class="pre-line">Notiz: <?= e($wish['giver_note']) ?></span><?php endif; ?></p>
+                    <?php wish_confirm_form($wish['id'], 'Reservation entfernen', 'Wirklich entfernen', 'wish_unreserve'); ?>
+                    <?php if ($hidden): ?></details><?php endif; ?>
+                </div>
             <?php else: ?>
                 <details>
                     <summary>Manuell reservieren</summary>

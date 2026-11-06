@@ -72,7 +72,7 @@ Each wish entry contains:
 - Admins can also remove any reservation (no emails sent, confirmation required, see 2.8).
 
 ### 2.6 Admin Surprise Protection
-- In `/admin`, giver details (name, email, reservation date, note) of a wish linked to any recipient with `is_parent = 1` are hidden by default and shown only after an explicit click (`<details>` element).
+- In `/admin`, giver details (name, email, reservation date, note) and "Reservation entfernen" of a wish linked to any recipient with `is_parent = 1` are hidden by default and shown only after an explicit click ("Schenkende anzeigen", `<details>` element).
 
 ### 2.7 Layout
 - Mobile-first: all pages, including `/admin`, work on phones (from 360 px width) and on larger screens, without horizontal scrolling and with touch-friendly controls.
