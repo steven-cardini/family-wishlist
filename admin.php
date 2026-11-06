@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = post('action');
     if ($action === 'login') {
         $password = $_POST['password'] ?? '';
-        if (login_throttled()) {
+        if (login_throttled('admin')) {
             flash('warning', 'Zu viele Fehlversuche. Bitte versuche es später nochmals.');
         } elseif (is_string($password) && password_verify($password, (string)config('admin_password_hash'))) {
             session_regenerate_id(true);

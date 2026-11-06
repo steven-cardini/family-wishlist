@@ -46,7 +46,9 @@ CREATE TABLE login_attempts (
 ip TEXT NOT NULL,
 target TEXT NOT NULL, -- 'key' (access key) or 'admin'
 success INTEGER NOT NULL,
-attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+input TEXT, -- Entered access key of failed key attempts (admin passwords are never stored)
+blocked INTEGER NOT NULL DEFAULT 0 -- Rejected by throttling, not counted as failure
 );
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;

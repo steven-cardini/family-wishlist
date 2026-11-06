@@ -89,7 +89,9 @@ Each wish entry contains:
 
 ### 2.9 Login Log (`/audit`)
 - Admins only (same login as `/admin`, see 7.2); otherwise redirects to `/admin`.
-- Lists the newest 200 rows of `login_attempts` (time, event, IP): successful admin logins and failed access key and admin password attempts. Successful access key logins and throttled attempts are not recorded.
+- Lists the newest 200 rows of `login_attempts` (time, event, IP): successful admin logins, failed access key and admin password attempts, and attempts blocked by throttling (3.4). Successful access key logins are not recorded.
+- Tabs «Fehlversuche (n)» (default) and «Alle (n)» (`?view=all`). Failed rows are marked.
+- Failed and blocked access key attempts show the entered key (trimmed, max. 100 characters). Entered admin passwords are never stored.
 - Rows older than 90 days are deleted (on every login attempt and every `/audit` view).
 
 ### 2.10 Admin Views (`/admin`)
@@ -135,7 +137,7 @@ Each wish entry contains:
   ```
   Backend rule: If `!empty($_POST['website_url'])`, processing halts silently.
 - **CSRF:** All POST forms (except `/cancel`, protected by its token) include a per-session CSRF token, checked with `hash_equals()`.
-- **Login throttling:** Failed access key and admin password attempts are stored per IP in `login_attempts` (see 2.9). After 10 failures within 15 minutes, further attempts from that IP are rejected.
+- **Login throttling:** Failed access key and admin password attempts are stored per IP in `login_attempts` (see 2.9). After 10 failures within 15 minutes, further attempts from that IP are rejected. Rejected attempts are recorded as blocked (max. 10 per IP within 15 minutes) and do not count as failures.
 
 ### 3.5 HTTP Security Headers
 Sent by `bootstrap.php` on every response:
@@ -165,7 +167,7 @@ The SQLite database schema and foreign key relations are defined exclusively in:
 - `wishes`: Main wishlist items.
 - `reservations`: At most one per wish (primary key `wish_id`); a wish is reserved if it has one. Deleted with its wish.
 - `wish_recipient`: Junction table mapping multi-recipient relationships to `wishes`.
-- `login_attempts`: Successful admin logins and all failed logins, for throttling and the login log (2.9).
+- `login_attempts`: Successful admin logins, all failed and blocked logins, for throttling and the login log (2.9).
 
 ---
 
@@ -209,7 +211,8 @@ Admin actions (2.5) send no emails. All emails are plain text. The sender (`smtp
 
 ### 7.3 Database Initialization (`db.php`)
 - `db.php` opens the SQLite PDO connection to `data/db.sqlite` (creating `data/` if missing) and sets `PRAGMA foreign_keys = ON` on every connection.
-- If `PRAGMA user_version` is `0`, `db/schema.sql` is executed once inside a `BEGIN IMMEDIATE` transaction (version is re-checked inside the transaction). The schema sets `user_version = 1`.
+- If `PRAGMA user_version` is `0`, `db/schema.sql` is executed once inside a `BEGIN IMMEDIATE` transaction (version is re-checked inside the transaction). The schema sets `user_version = 2`.
+- Migration in the same transaction: version `1` → `2` adds `login_attempts.input` and `login_attempts.blocked`.
 - **Reset:** Delete `data/db.sqlite` (e.g., via FTP). It is recreated empty on the next request.
 - Future schema changes: add migration steps keyed on `user_version`.
 

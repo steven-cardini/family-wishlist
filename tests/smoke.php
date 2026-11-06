@@ -317,12 +317,18 @@ check('admin page links to audit log', str_contains(http('admin', 'GET', '/admin
 // 2.9: audit log
 $r = http('anonymous', 'GET', '/audit');
 check('audit log without admin login redirects to /admin', $r['status'] === 303 && str_contains($r['headers'], "Location: /admin\r\n"));
-check('admin logins and failed logins are recorded, key logins are not',
-    q('SELECT target, success FROM login_attempts ORDER BY rowid') === [['target' => 'key', 'success' => 0], ['target' => 'admin', 'success' => 0], ['target' => 'admin', 'success' => 1]]);
+check('admin logins and failed logins are recorded with entered key only, key logins are not',
+    q('SELECT target, success, input FROM login_attempts ORDER BY rowid') === [['target' => 'key', 'success' => 0, 'input' => 'wrong'], ['target' => 'admin', 'success' => 0, 'input' => null], ['target' => 'admin', 'success' => 1, 'input' => null]]);
 q("INSERT INTO login_attempts (ip, target, success, attempted_at) VALUES ('<b>x</b>', 'admin', 1, datetime('now', '-91 days'))");
 q("INSERT INTO login_attempts (ip, target, success, attempted_at) VALUES ('<b>y</b>', 'admin', 1, datetime('now', '-89 days'))");
+q("INSERT INTO login_attempts (ip, target, success, input, blocked) VALUES ('192.0.2.1', 'key', 0, '<i>z</i>', 0), ('192.0.2.1', 'key', 0, '', 0), ('192.0.2.1', 'key', 0, 'k', 1)");
 $page = http('admin', 'GET', '/audit')['body'];
-check('audit log lists attempts newest first', preg_match('#<td>Anmeldung Verwaltung<br><small>IP 127\.0\.0\.1</small></td>.*<td>Falsches Passwort<br>.*<td>Falscher Code<br>#s', $page) === 1);
+check('audit log shows failures only by default', preg_match('#aria-current="page">Fehlversuche \(5\)</a>.*>Alle \(7\)</a>#s', $page) === 1
+    && !str_contains($page, 'Anmeldung Verwaltung') && substr_count($page, '<tr class="failed">') === 5);
+check('audit log shows entered key, escaped', preg_match('#<td>Anmeldung gesperrt \(Code\) <code>k</code><br>.*<td>Falscher Code \(leer\)<br>.*<td>Falscher Code <code>&lt;i&gt;z&lt;/i&gt;</code><br>.*<td>Falsches Passwort<br>.*<td>Falscher Code <code>wrong</code><br>#s', $page) === 1);
+$page = http('admin', 'GET', '/audit?view=all')['body'];
+check('audit log shows all attempts on request, newest first', str_contains($page, 'aria-current="page">Alle (7)</a>')
+    && preg_match('#<tr class="failed">\s*<td>[^<]*</td>\s*<td>Anmeldung gesperrt \(Code\).*<tr>\s*<td>[^<]*</td>\s*<td>Anmeldung Verwaltung<br><small>IP 127\.0\.0\.1</small></td>.*<td>Falsches Passwort<br>.*<td>Falscher Code <code>wrong</code><br>#s', $page) === 1);
 check('audit log escapes IP', str_contains($page, '&lt;b&gt;y&lt;/b&gt;') && !str_contains($page, '<b>y</b>'));
 check('attempts older than 90 days are deleted', !str_contains($page, '&lt;b&gt;x&lt;/b&gt;') && count(q("SELECT * FROM login_attempts WHERE ip = '<b>x</b>'")) === 0);
 check('admin session counts as access', str_contains(http('admin', 'GET', '/')['body'], 'x-data="wishlist"'));
@@ -601,6 +607,14 @@ $r = http('throttled', 'GET', "/?key=$newKey");
 check('correct key is rejected after 10 failures', $r['status'] === 200 && str_contains($r['body'], 'Zu viele Fehlversuche'));
 $csrf = csrf('throttled', '/admin');
 check('admin login is rejected after 10 failures', str_contains(submit('throttled', '/admin', ['csrf' => $csrf, 'action' => 'login', 'password' => ADMIN_PASSWORD]), 'Zu viele Fehlversuche'));
+check('blocked attempts are recorded with entered key only',
+    q("SELECT target, input FROM login_attempts WHERE blocked = 1 AND ip = '127.0.0.1' ORDER BY rowid") === [['target' => 'key', 'input' => $newKey], ['target' => 'admin', 'input' => null]]);
+for ($i = 0; $i < 10; $i++) {
+    http('throttled', 'GET', '/?key=wrong');
+}
+check('at most 10 blocked attempts per IP within 15 minutes are recorded', count(q("SELECT * FROM login_attempts WHERE blocked = 1 AND ip = '127.0.0.1'")) === 10);
+q("UPDATE login_attempts SET attempted_at = datetime('now', '-16 minutes') WHERE blocked = 0");
+check('blocked attempts do not count as failures', http('throttled', 'GET', "/?key=$newKey")['status'] === 303);
 
 $serverLog = (string)file_get_contents("$tmp/server.log");
 check('no PHP warnings or errors', !preg_match('/PHP (Warning|Notice|Deprecated|Fatal|Parse)/', $serverLog));

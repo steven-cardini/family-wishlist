@@ -34,6 +34,8 @@ const RECIPIENT_COLORS = [
 const HONEYPOT_STYLE_HASH = 'sha256-0EZqoz+oBhx7gF4nvY2bSqoGyy4zLjNF+SDQXGp/ZrY=';
 const GIVER_NOTE_MAX_LENGTH = 500;
 const LOGIN_RETENTION_DAYS = 90;
+const LOGIN_INPUT_MAX_LENGTH = 100;
+const LOGIN_MAX_FAILURES = 10;
 const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3ClinearGradient id='g' x2='1' y2='1'%3E%3Cstop stop-color='%23e0608c'/%3E%3Cstop offset='1' stop-color='%23a1214f'/%3E%3C/linearGradient%3E%3Crect width='24' height='24' rx='6' fill='url(%23g)'/%3E%3Cg transform='translate(4.2 4.2) scale(.65)' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='9' rx='1.5'/%3E%3Crect x='3' y='7.5' width='18' height='3.5' rx='1'/%3E%3Cpath d='M12 7.5V20M12 7.5C10.5 4.5 7 4 7 6s2.5 1.5 5 1.5zm0 0c1.5-3 5-3.5 5-1.5s-2.5 1.5-5 1.5z'/%3E%3C/g%3E%3C/svg%3E";
 // Theme toggle: a cookie only stores a choice that differs from the device setting (docs/technical_specification.md, 2.7)
 const THEME_SCRIPT = <<<'JS'
@@ -209,20 +211,31 @@ function purge_login_attempts(): void
         ->execute(['-' . LOGIN_RETENTION_DAYS . ' days']);
 }
 
-function login_throttled(): bool
+/** Also records the attempt as blocked if throttled (docs/technical_specification.md, 3.4). */
+function login_throttled(string $target, ?string $input = null): bool
 {
     purge_login_attempts();
-    $stmt = db()->prepare("SELECT COUNT(*) FROM login_attempts
+    $stmt = db()->prepare("SELECT TOTAL(blocked = 0), TOTAL(blocked) FROM login_attempts
         WHERE ip = ? AND success = 0 AND attempted_at >= datetime('now', '-15 minutes')");
     $stmt->execute([$_SERVER['REMOTE_ADDR'] ?? '']);
-    return (int)$stmt->fetchColumn() >= 10;
+    [$failures, $blocked] = $stmt->fetch(PDO::FETCH_NUM);
+    if ($failures < LOGIN_MAX_FAILURES) {
+        return false;
+    }
+    if ($blocked < LOGIN_MAX_FAILURES) {
+        record_login_attempt($target, false, $input, true);
+    }
+    return true;
 }
 
-/** $target: 'key' or 'admin'. Successful key logins are not recorded (docs/technical_specification.md, 2.9). */
-function record_login_attempt(string $target, bool $success): void
+/** $target: 'key' or 'admin'. $input: entered key of failed key logins only (docs/technical_specification.md, 2.9). */
+function record_login_attempt(string $target, bool $success, ?string $input = null, bool $blocked = false): void
 {
-    db()->prepare('INSERT INTO login_attempts (ip, target, success) VALUES (?, ?, ?)')
-        ->execute([$_SERVER['REMOTE_ADDR'] ?? '', $target, (int)$success]);
+    if ($input !== null) {
+        $input = mb_substr(mb_scrub($input, 'UTF-8'), 0, LOGIN_INPUT_MAX_LENGTH, 'UTF-8');
+    }
+    db()->prepare('INSERT INTO login_attempts (ip, target, success, input, blocked) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$_SERVER['REMOTE_ADDR'] ?? '', $target, (int)$success, $input, (int)$blocked]);
 }
 
 function format_date(?string $utc, string $format = 'd.m.Y H:i'): string

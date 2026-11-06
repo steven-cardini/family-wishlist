@@ -424,9 +424,13 @@ dialog small {
   overflow-wrap: anywhere;
 }
 
-/* Long IPv6 addresses must not widen the page */
-.audit small {
+/* Long IPv6 addresses and codes must not widen the page */
+.audit :is(small, code) {
   overflow-wrap: anywhere;
+}
+
+.audit .failed td:first-child {
+  box-shadow: inset 0.3rem 0 #dc7a1c;
 }
 
 .price select {

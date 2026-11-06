@@ -7,7 +7,7 @@ require __DIR__ . '/bootstrap.php';
 $error = '';
 if (isset($_GET['key'])) {
     $key = is_string($_GET['key']) ? trim($_GET['key']) : '';
-    if (login_throttled()) {
+    if (login_throttled('key', $key)) {
         $error = 'Zu viele Fehlversuche. Bitte versuche es später nochmals.';
     } elseif ($key !== '' && hash_equals((string)config('access_key'), $key)) {
         start_session();
@@ -15,7 +15,7 @@ if (isset($_GET['key'])) {
         $_SESSION['access_key_hash'] = access_key_hash();
         redirect('/');
     } else {
-        record_login_attempt('key', false);
+        record_login_attempt('key', false, $key);
         $error = 'Dieser Code ist ungültig.';
     }
 }
