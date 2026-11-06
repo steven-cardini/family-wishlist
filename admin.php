@@ -13,6 +13,7 @@ const TRACKING_PARAMS = [
     '/(^|\.)nalda\.ch$/i' => '/^(tm|ap|aaid)$/i',
 ];
 const CURRENCIES = ['CHF', 'EUR', 'USD'];
+const ADMIN_VIEWS = ['open', 'reserved', 'recipients'];
 
 /** Removes tracking query parameters (docs/technical_specification.md, 2.1). */
 function clean_url(string $url): string
@@ -60,6 +61,30 @@ function count_rows(string $sql, int $id): int
     return (int)$stmt->fetchColumn();
 }
 
+/** View, recipient filter and wish form from the query (docs/technical_specification.md, 2.10). */
+function admin_state(): array
+{
+    $view = $_GET['view'] ?? '';
+    return [
+        'view' => in_array($view, ADMIN_VIEWS, true) ? $view : 'open',
+        'for' => (int)($_GET['for'] ?? 0),
+        'edit' => isset($_GET['edit']) ? (int)$_GET['edit'] : null,
+    ];
+}
+
+/** $edit: null = no wish form, 0 = new wish. */
+function admin_url(string $view, int $for = 0, ?int $edit = null): string
+{
+    $query = ['view' => $view];
+    if ($for > 0) {
+        $query['for'] = $for;
+    }
+    if ($edit !== null) {
+        $query['edit'] = $edit > 0 ? $edit : 'new';
+    }
+    return '/admin?' . http_build_query($query);
+}
+
 /** Two-step submit button against accidental clicks (docs/technical_specification.md, 2.8). */
 function confirm_button(string $label, string $confirmLabel, string $action): string
 {
@@ -71,7 +96,7 @@ function confirm_button(string $label, string $confirmLabel, string $action): st
 function wish_confirm_form(int $id, string $label, string $confirmLabel, string $action): void
 {
     ?>
-    <form method="post" action="/admin">
+    <form method="post">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= e($id) ?>">
         <?= confirm_button($label, $confirmLabel, $action) ?>
@@ -93,7 +118,7 @@ function next_color(): string
 function recipient_form(array $recipient): void
 {
     ?>
-    <form method="post" action="/admin">
+    <form method="post">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= e($recipient['id']) ?>">
         <label>Name <input type="text" name="name" value="<?= e($recipient['name']) ?>" required></label>
@@ -182,12 +207,12 @@ function handle_action(string $action, int $id): array
                 return ['warning', 'Die Notiz darf höchstens ' . GIVER_NOTE_MAX_LENGTH . ' Zeichen lang sein.'];
             }
             return insert_reservation($id, $name, $email, $note, null)
-                ? ['success', 'Wunsch reserviert.']
+                ? ['success', 'Wunsch reserviert. Du findest ihn unter «Reserviert».']
                 : ['warning', 'Dieser Wunsch ist bereits reserviert.'];
 
         case 'wish_unreserve':
             $db->prepare('DELETE FROM reservations WHERE wish_id = ?')->execute([$id]);
-            return ['success', 'Reservation entfernt.'];
+            return ['success', 'Reservation entfernt. Der Wunsch ist wieder unter «Offen».'];
 
         case 'recipient_save':
             $name = post('name');
@@ -239,9 +264,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('warning', 'Bitte melde dich erneut an.');
         redirect('/admin');
     }
-    [$type, $message] = handle_action($action, (int)post('id'));
+    $id = (int)post('id');
+    [$type, $message] = handle_action($action, $id);
     flash($type, $message);
-    redirect('/admin');
+    ['view' => $view, 'for' => $for, 'edit' => $edit] = admin_state();
+    if ($action === 'wish_save' && $type !== 'success') {
+        redirect(admin_url($view, $for, $edit ?? 0));
+    }
+    if ($action === 'wish_save') {
+        redirect($id > 0 ? admin_url($view, $for) . "#wish-$id" : admin_url('open'));
+    }
+    redirect(admin_url($view, $for));
 }
 
 start_session();
@@ -263,17 +296,34 @@ if (!is_admin()) {
     exit;
 }
 
-$recipients = db()->query('SELECT * FROM recipients ORDER BY name')->fetchAll();
-$wishes = load_wishes();
 
-$editId = (int)($_GET['edit'] ?? 0);
-$edit = $wishes[$editId] ?? ['id' => 0, 'title' => '', 'description' => '', 'price' => '', 'url' => '',
-    'image_url' => '', 'is_priority' => 0, 'recipients' => []];
-$editRecipientIds = array_column($edit['recipients'], 'id');
-[$editAmount, $editCurrency] = split_price((string)$edit['price']);
+['view' => $view, 'for' => $for, 'edit' => $edit] = admin_state();
+$recipients = db()->query('SELECT * FROM recipients ORDER BY is_parent, name')->fetchAll();
+$wishes = load_wishes();
+if (!in_array($for, array_column($recipients, 'id'), true)) {
+    $for = 0;
+}
+
+$lists = ['open' => [], 'reserved' => []];
+$counts = ['open' => [], 'reserved' => []];
+foreach ($wishes as $wish) {
+    $list = $wish['is_reserved'] ? 'reserved' : 'open';
+    $recipientIds = array_column($wish['recipients'], 'id');
+    foreach ($recipientIds as $recipientId) {
+        $counts[$list][$recipientId] = ($counts[$list][$recipientId] ?? 0) + 1;
+    }
+    if ($for === 0 || in_array($for, $recipientIds, true)) {
+        $lists[$list][] = $wish;
+    }
+}
+$forParentsOnly = fn (array $wish): bool => !in_array(0, array_column($wish['recipients'], 'is_parent'), true);
+usort($lists['reserved'], fn (array $a, array $b): int
+    => [$forParentsOnly($a), $b['reserved_at']] <=> [$forParentsOnly($b), $a['reserved_at']]);
+$tabs = ['open' => 'Offen (' . count($lists['open']) . ')', 'reserved' => 'Reserviert (' . count($lists['reserved']) . ')',
+    'recipients' => 'Empfänger'];
 ?>
 <h1>Verwaltung</h1>
-<form method="post" action="/admin">
+<form method="post">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="logout">
     <div role="group">
@@ -282,44 +332,98 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
     </div>
 </form>
 
-<section id="wish-form">
-    <h2><?= $edit['id'] ? 'Wunsch bearbeiten' : 'Neuer Wunsch' ?></h2>
-    <form method="post" action="/admin">
+<nav class="tabs" aria-label="Ansicht">
+    <?php foreach ($tabs as $tab => $label): ?>
+        <a href="<?= e(admin_url($tab, $tab === 'recipients' ? 0 : $for)) ?>"<?= $tab === $view && $edit === null ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>
+    <?php endforeach; ?>
+</nav>
+
+<?php if ($edit !== null):
+    $wish = $wishes[$edit] ?? ['id' => 0, 'title' => '', 'description' => '', 'price' => '', 'url' => '',
+        'image_url' => '', 'is_priority' => 0, 'recipients' => []];
+    $wishRecipientIds = array_column($wish['recipients'], 'id');
+    [$amount, $wishCurrency] = split_price((string)$wish['price']);
+    ?>
+<section>
+    <h2><?= $wish['id'] ? 'Wunsch bearbeiten' : 'Neuer Wunsch' ?></h2>
+    <form method="post">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="wish_save">
-        <input type="hidden" name="id" value="<?= e($edit['id']) ?>">
-        <label>Titel <input type="text" name="title" value="<?= e($edit['title']) ?>" required></label>
-        <label>Beschreibung (optional) <textarea name="description" rows="3"><?= e($edit['description']) ?></textarea></label>
+        <input type="hidden" name="id" value="<?= e($wish['id']) ?>">
+        <label>Titel <input type="text" name="title" value="<?= e($wish['title']) ?>" required></label>
+        <label>Beschreibung (optional) <textarea name="description" rows="3"><?= e($wish['description']) ?></textarea></label>
         <label for="price">Ungefährer Preis (optional)</label>
         <div role="group" class="price">
-            <input type="text" id="price" name="price" value="<?= e($editAmount) ?>" placeholder="30">
+            <input type="text" id="price" name="price" value="<?= e($amount) ?>" placeholder="30">
             <select name="currency" aria-label="Währung">
                 <?php foreach (CURRENCIES as $currency): ?>
-                    <option<?= $currency === $editCurrency ? ' selected' : '' ?>><?= e($currency) ?></option>
+                    <option<?= $currency === $wishCurrency ? ' selected' : '' ?>><?= e($currency) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <label>Shop-Link (optional) <input type="url" name="url" value="<?= e($edit['url']) ?>" placeholder="https://"></label>
-        <label>Bild-Link (optional) <input type="url" name="image_url" value="<?= e($edit['image_url']) ?>" placeholder="https://"></label>
+        <label>Shop-Link (optional) <input type="url" name="url" value="<?= e($wish['url']) ?>" placeholder="https://"></label>
+        <label>Bild-Link (optional) <input type="url" name="image_url" value="<?= e($wish['image_url']) ?>" placeholder="https://"></label>
         <fieldset>
             <legend>Für</legend>
             <?php foreach ($recipients as $recipient): ?>
-                <label><input type="checkbox" name="recipients[]" value="<?= e($recipient['id']) ?>"<?= in_array($recipient['id'], $editRecipientIds, true) ? ' checked' : '' ?>> <?= e($recipient['name']) ?></label>
+                <label><input type="checkbox" name="recipients[]" value="<?= e($recipient['id']) ?>"<?= in_array($recipient['id'], $wishRecipientIds, true) ? ' checked' : '' ?>> <?= e($recipient['name']) ?></label>
             <?php endforeach; ?>
         </fieldset>
-        <label><input type="checkbox" name="is_priority" role="switch"<?= $edit['is_priority'] ? ' checked' : '' ?>> Grosser Wunsch</label>
+        <label><input type="checkbox" name="is_priority" role="switch"<?= $wish['is_priority'] ? ' checked' : '' ?>> Grosser Wunsch</label>
         <button type="submit">Speichern</button>
-        <?php if ($edit['id']): ?><a href="/admin" role="button" class="secondary outline">Abbrechen</a><?php endif; ?>
+        <a href="<?= e(admin_url($view, $for)) ?>" role="button" class="secondary outline">Abbrechen</a>
     </form>
 </section>
 
+<?php elseif ($view === 'recipients'): ?>
 <section>
-    <h2>Wünsche</h2>
-    <?php foreach ($wishes as $wish): ?>
+    <?php foreach ($recipients as $recipient): ?>
         <article>
-            <?php if ($wish['is_priority']): ?><p><span class="badge priority"><span aria-hidden="true">★</span> Grosser Wunsch</span></p><?php endif; ?>
-            <h3><?= e($wish['title']) ?></h3>
-            <?= recipient_tags($wish['recipients']) ?>
+            <p><span class="recipient color-<?= e($recipient['color']) ?>"><?= e($recipient['name']) ?></span><br>
+                <small><?= e($recipient['email'] ?: 'Keine E-Mail') ?><?= $recipient['is_parent'] ? ' · Elternteil' : '' ?></small></p>
+            <details>
+                <summary role="button" class="outline">Bearbeiten</summary>
+                <?php recipient_form($recipient); ?>
+            </details>
+        </article>
+    <?php endforeach; ?>
+    <h2>Neuer Empfänger</h2>
+    <?php recipient_form(['id' => 0, 'name' => '', 'email' => '', 'is_parent' => 0, 'color' => next_color()]); ?>
+</section>
+
+<?php else: ?>
+<p><a href="<?= e(admin_url($view, $for, 0)) ?>" role="button"><span aria-hidden="true">+</span> Neuer Wunsch</a></p>
+<nav class="chips" aria-label="Nach Empfänger filtern">
+    <a href="<?= e(admin_url($view)) ?>"<?= $for === 0 ? ' aria-current="page"' : '' ?>>Alle</a>
+    <?php $previous = null; ?>
+    <?php foreach ($recipients as $recipient):
+        if (!isset($counts['open'][$recipient['id']]) && !isset($counts['reserved'][$recipient['id']])) {
+            continue;
+        }
+        ?>
+        <?php if ($recipient['is_parent'] && $previous !== null && !$previous['is_parent']): ?><span class="separator" aria-hidden="true"></span><?php endif; ?>
+        <a href="<?= e(admin_url($view, $recipient['id'])) ?>" class="recipient color-<?= e($recipient['color']) ?>"<?= $for === $recipient['id'] ? ' aria-current="page"' : '' ?>><?= e($recipient['name']) ?> (<?= $counts[$view][$recipient['id']] ?? 0 ?>)</a>
+        <?php $previous = $recipient; ?>
+    <?php endforeach; ?>
+</nav>
+
+<div class="wish-grid">
+    <?php foreach ($lists[$view] as $wish): ?>
+        <article class="item" id="wish-<?= e($wish['id']) ?>">
+            <div class="item-head">
+                <div class="thumb"><?php if ($wish['image_url']): ?><img src="<?= e($wish['image_url']) ?>" alt="" loading="lazy"><?php endif; ?></div>
+                <div>
+                    <?php if ($wish['is_priority']): ?><span class="badge priority"><span aria-hidden="true">★</span> Grosser Wunsch</span><?php endif; ?>
+                    <h2><?= e($wish['title']) ?></h2>
+                    <?= recipient_tags($wish['recipients']) ?>
+                    <?php if ($wish['price'] || $wish['url']): ?>
+                        <p><small>
+                            <?= $wish['price'] ? 'ca. ' . e($wish['price']) : '' ?><?= $wish['price'] && $wish['url'] ? ' · ' : '' ?>
+                            <?php if ($wish['url']): ?><a href="<?= e($wish['url']) ?>" target="_blank" rel="noopener noreferrer" aria-label="Zum Shop (öffnet in neuem Tab)">Shop ↗</a><?php endif; ?>
+                        </small></p>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php if ($wish['is_reserved']):
                 $giver = $wish['giver_name'] . ($wish['giver_email'] ? ' (' . $wish['giver_email'] . ')' : '')
                     . ', ' . format_date($wish['reserved_at'])
@@ -334,7 +438,7 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
             <?php else: ?>
                 <details>
                     <summary>Manuell reservieren</summary>
-                    <form method="post" action="/admin">
+                    <form method="post">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="wish_reserve">
                         <input type="hidden" name="id" value="<?= e($wish['id']) ?>">
@@ -346,32 +450,17 @@ $editRecipientIds = array_column($edit['recipients'], 'id');
                 </details>
             <?php endif; ?>
             <footer>
-                <p><a href="/admin?edit=<?= e($wish['id']) ?>#wish-form" role="button" class="outline">Bearbeiten</a></p>
+                <a href="<?= e(admin_url($view, $for, $wish['id'])) ?>" role="button" class="outline">Bearbeiten</a>
                 <?php wish_confirm_form($wish['id'], 'Löschen', 'Wirklich löschen', 'wish_delete'); ?>
             </footer>
         </article>
     <?php endforeach; ?>
-</section>
+</div>
+<?php if ($lists[$view] === []): ?>
+    <p class="empty"><?= $view === 'open' ? 'Keine offenen Wünsche.' : 'Keine reservierten Wünsche.' ?></p>
+<?php endif; ?>
+<?php endif; ?>
 
-<section>
-    <h2>Empfänger</h2>
-    <?php foreach ($recipients as $recipient): ?>
-        <article>
-            <p><span class="recipient color-<?= e($recipient['color']) ?>"><?= e($recipient['name']) ?></span><br>
-                <small><?= e($recipient['email'] ?: 'Keine E-Mail') ?><?= $recipient['is_parent'] ? ' · Elternteil' : '' ?></small></p>
-            <details>
-                <summary role="button" class="outline">Bearbeiten</summary>
-                <?php recipient_form($recipient); ?>
-            </details>
-        </article>
-    <?php endforeach; ?>
-    <h3>Neuer Empfänger</h3>
-    <?php recipient_form(['id' => 0, 'name' => '', 'email' => '', 'is_parent' => 0, 'color' => next_color()]); ?>
-</section>
-
-<section>
-    <h2>Protokoll</h2>
-    <p><a href="/audit">Anmeldungen und Fehlversuche ansehen</a></p>
-</section>
+<p class="footnote"><a href="/audit">Anmeldeprotokoll ansehen</a></p>
 <?php
 page_end();

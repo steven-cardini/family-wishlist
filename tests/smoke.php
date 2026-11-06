@@ -329,7 +329,7 @@ check('admin session counts as access', str_contains(http('admin', 'GET', '/')['
 check('admin action without CSRF token fails', http('admin', 'POST', '/admin', ['action' => 'recipient_save', 'name' => 'X', 'color' => 'blue'])['status'] === 400);
 
 // 1.1: recipients
-check('new recipient form preselects first color', str_contains(http('admin', 'GET', '/admin')['body'], 'value="blue" checked'));
+check('new recipient form preselects first color', str_contains(http('admin', 'GET', '/admin?view=recipients')['body'], 'value="blue" checked'));
 admin(['action' => 'recipient_save', 'name' => 'Kind', 'color' => 'blue']);
 admin(['action' => 'recipient_save', 'name' => 'Mama', 'email' => 'mama@example.com', 'is_parent' => 'on', 'color' => 'green']);
 admin(['action' => 'recipient_save', 'name' => 'Papa', 'email' => 'papa@example.com', 'is_parent' => 'on', 'color' => 'orange']);
@@ -340,7 +340,9 @@ $ids = array_column(q('SELECT id, name FROM recipients'), 'id', 'name');
 check('recipients created', array_keys($ids) === ['Kind', 'Mama', 'Papa', 'Oma']);
 admin(['action' => 'recipient_save', 'id' => $ids['Oma'], 'name' => 'Grosi', 'color' => 'red']);
 check('recipient renamed and recolored', q('SELECT name, color FROM recipients WHERE id = ?', [$ids['Oma']])[0] === ['name' => 'Grosi', 'color' => 'red']);
-$page = http('admin', 'GET', '/admin')['body'];
+$r = http('admin', 'POST', '/admin?view=recipients', ['csrf' => $adminCsrf, 'action' => 'recipient_save', 'id' => $ids['Oma'], 'name' => 'Grosi', 'color' => 'red']);
+check('admin action returns to current view', str_contains($r['headers'], "Location: /admin?view=recipients\r\n"));
+$page = http('admin', 'GET', '/admin?view=recipients')['body'];
 check('new recipient form preselects least used color', str_contains($page, 'value="violet" checked'));
 check('recipient delete needs confirmation', str_contains($page, '<details class="confirm"><summary>Löschen</summary><button type="submit" name="action" value="recipient_delete"'));
 
@@ -358,14 +360,34 @@ $wishIds = array_column(q('SELECT id, title FROM wishes'), 'id', 'title');
 [$lego, $book, $bike] = [$wishIds['Lego <b>Set</b>'], $wishIds['Buch für Mama'], $wishIds['Velo']];
 check('wishes created with recipients', count($wishIds) === 3 && count(q('SELECT * FROM wish_recipient')) === 3);
 check('leading "ca." is removed from price', wish($lego)['price'] === '30 CHF' && wish($book)['price'] === '20 CHF');
-check('new wish form preselects CHF', str_contains(http('admin', 'GET', '/admin')['body'], '<option selected>CHF</option>'));
+$page = http('admin', 'GET', '/admin')['body'];
+check('admin shows open view by default with tabs and counts', str_contains($page, '<a href="/admin?view=open" aria-current="page">Offen (3)</a>')
+    && str_contains($page, '<a href="/admin?view=reserved">Reserviert (0)</a>') && str_contains($page, '<a href="/admin?view=recipients">Empfänger</a>'));
+check('new wish form on its own page', str_contains($page, 'href="/admin?view=open&amp;edit=new" role="button"') && !str_contains($page, 'name="title"'));
+check('wish card with thumbnail, price and shop link', str_contains($page, '<div class="thumb"><img src="https://shop.example.com/lego.jpg" alt="" loading="lazy"></div>')
+    && str_contains($page, 'ca. 30 CHF') && str_contains($page, 'aria-label="Zum Shop (öffnet in neuem Tab)">Shop ↗</a>'));
+$page = http('admin', 'GET', '/admin?view=open&edit=new')['body'];
+check('new wish form preselects CHF, cancel returns to view', str_contains($page, '<option selected>CHF</option>')
+    && str_contains($page, '<a href="/admin?view=open" role="button" class="secondary outline">Abbrechen</a>'));
+$r = http('admin', 'POST', '/admin?view=open&edit=new', ['csrf' => $adminCsrf] + $wishForm + ['title' => '']);
+check('invalid wish returns to the form', str_contains($r['headers'], "Location: /admin?view=open&edit=new\r\n"));
+http('admin', 'GET', '/admin'); // shows and clears the warning
 check('invalid currency is rejected', str_contains(admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']],
     'price' => '20', 'currency' => 'GBP'] + $wishForm), 'Währung') && wish($book)['price'] === '20 CHF');
 admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'ca. 15–20', 'currency' => 'EUR'] + $wishForm);
 check('selected currency is appended to price', wish($book)['price'] === '15–20 EUR');
-$page = http('admin', 'GET', "/admin?edit=$book")['body'];
+$page = http('admin', 'GET', "/admin?view=open&for={$ids['Mama']}&edit=$book")['body'];
 check('edit form splits price into amount and currency', str_contains($page, 'name="price" value="15–20"') && str_contains($page, '<option selected>EUR</option>'));
-admin(['id' => $book, 'title' => 'Buch für Mama', 'recipients' => [$ids['Mama']], 'price' => 'usd 20'] + $wishForm);
+$r = http('admin', 'POST', "/admin?view=open&for={$ids['Mama']}&edit=$book", ['csrf' => $adminCsrf, 'id' => $book, 'title' => 'Buch für Mama',
+    'recipients' => [$ids['Mama']], 'price' => 'usd 20'] + $wishForm);
+check('saved wish returns to view and filter, scrolled to the wish', str_contains($r['headers'], "Location: /admin?view=open&for={$ids['Mama']}#wish-$book\r\n"));
+$page = http('admin', 'GET', "/admin?view=open&for={$ids['Mama']}")['body'];
+check('recipient filter shows only their wishes', str_contains($page, 'Buch für Mama') && !str_contains($page, 'Velo')
+    && str_contains($page, 'Offen (1)') && str_contains($page, 'href="/admin?view=reserved&amp;for=' . $ids['Mama'] . '">Reserviert (0)'));
+check('filter chips with counts, active one marked, only recipients with wishes', str_contains($page, '<a href="/admin?view=open">Alle</a>')
+    && str_contains($page, 'class="recipient color-green" aria-current="page">Mama (1)</a>') && str_contains($page, 'class="recipient color-blue">Kind (2)</a>')
+    && !str_contains($page, '>Papa (') && !str_contains($page, '>Grosi ('));
+check('unknown recipient filter shows all', str_contains(http('admin', 'GET', '/admin?view=open&for=999')['body'], 'Offen (3)'));
 check('typed currency is replaced by the selected one', wish($book)['price'] === '20 CHF');
 check('wish without price needs no currency', str_contains(admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']]]
     + array_diff_key($wishForm, ['currency' => ''])), 'Wunsch gespeichert.') && wish($bike)['price'] === null);
@@ -516,7 +538,15 @@ $w = wish($bike);
 check('manual reservation without email, token or mails', $w['is_reserved'] === 1 && $w['giver_name'] === 'Grosi'
     && $w['giver_email'] === null && $w['giver_note'] === 'Per <b>Telefon</b>' && $w['cancel_token'] === null && take_mails() === []);
 check('manual reservation of reserved wish fails', str_contains(admin(['action' => 'wish_reserve', 'id' => $bike, 'giver_name' => 'X']), 'bereits reserviert'));
+q("UPDATE reservations SET reserved_at = datetime('now', '-2 hours') WHERE wish_id = ?", [$lego]);
+q("UPDATE reservations SET reserved_at = datetime('now', '-1 hour') WHERE wish_id = ?", [$book]);
 $page = http('admin', 'GET', '/admin')['body'];
+check('open view lists no reserved wishes', !str_contains($page, 'Velo') && !str_contains($page, 'Lego') && str_contains($page, 'Keine offenen Wünsche.')
+    && str_contains($page, 'Reserviert (3)'));
+$page = http('admin', 'GET', '/admin?view=reserved')['body'];
+check('reserved view: children first, newest reservation first', str_contains($page, '<a href="/admin?view=reserved" aria-current="page">Reserviert (3)</a>')
+    && strpos($page, 'Velo') < strpos($page, 'Lego') && strpos($page, 'Lego') < strpos($page, 'Buch für Mama'));
+check('filter chip counts wishes in current view', str_contains($page, 'class="recipient color-blue">Kind (2)</a>'));
 $reservedAt = (new DateTimeImmutable($w['reserved_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Europe/Zurich'))->format('d.m.Y H:i');
 check('giver of child wish shown with local time and escaped note', str_contains($page, "<p class=\"pre-line\">Reserviert von Grosi, $reservedAt\nNotiz: Per &lt;b&gt;Telefon&lt;/b&gt;</p>"));
 check('reservation removal needs confirmation', str_contains($page, '<details class="confirm"><summary>Reservation entfernen</summary><button type="submit" name="action" value="wish_unreserve"'));

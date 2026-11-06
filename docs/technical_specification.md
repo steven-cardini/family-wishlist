@@ -47,7 +47,7 @@ Each wish entry contains:
   - **Status:** "Available only" (default), "Reserved only", "Show all".
 - A summary above the wishes shows the number of shown wishes (screen-reader live region). If a recipient filter or "Reserved only" is active, it is highlighted, names the active filters ("Filter aktiv (für Anna, nur verfügbare): 1 von 5 Wünschen") and offers "Filter zurücksetzen" (back to defaults), so no wishes are hidden by mistake.
 - Filters are kept in `sessionStorage` (survive the reload after a reservation, reset when the tab is closed).
-- Sort order (also in `/admin`): available before reserved; within each, wishes with at least one non-parent recipient before wishes for parents only; within each, priority wishes first; within each group, recipients take turns (each recipient's newest wish, then each one's second newest, …), so the entry order does not favor one child. A wish counts at its earliest turn among its recipients (for wishes with a non-parent, only non-parents count). Same turn: newest first.
+- Sort order (also in the admin view «Offen», see 2.10): available before reserved; within each, wishes with at least one non-parent recipient before wishes for parents only; within each, priority wishes first; within each group, recipients take turns (each recipient's newest wish, then each one's second newest, …), so the entry order does not favor one child. A wish counts at its earliest turn among its recipients (for wishes with a non-parent, only non-parents count). Same turn: newest first.
 - Reserved wishes are rendered at the bottom, grayed out, with their reservation date ("Reserviert am 24.12.2026"). Giver details are never shown.
 - A "Link teilen" button at the bottom shares the access link (`base_url` + `/?key=...`) via the device's share dialog, or copies it to the clipboard if sharing is not supported. If both fail, the link is shown as text.
 
@@ -91,6 +91,16 @@ Each wish entry contains:
 - Admins only (same login as `/admin`, see 7.2); otherwise redirects to `/admin`.
 - Lists the newest 200 rows of `login_attempts` (time, event, IP): successful admin logins and failed access key and admin password attempts. Successful access key logins and throttled attempts are not recorded.
 - Rows older than 90 days are deleted (on every login attempt and every `/audit` view).
+
+### 2.10 Admin Views (`/admin`)
+- Tabs «Offen (n)», «Reserviert (n)» and «Empfänger» (`?view=open|reserved|recipients`, default `open`). The counts follow the recipient filter.
+- «Offen» and «Reserviert» have a "Neuer Wunsch" button and a recipient filter (`&for=<id>`; one recipient or «Alle»). Its chips list recipients with at least one wish, as on the wishlist (2.2), each with its number of wishes in the current view.
+- Wishes are cards with image (or gift icon), title, recipients, price and shop link.
+- «Offen»: order as on the wishlist (2.2), with "Manuell reservieren" (2.5).
+- «Reserviert»: wishes with at least one non-parent recipient first, then wishes for parents only; within each, newest reservation first. Giver details as in 2.6.
+- The wish form is a separate page (`&edit=new` or `&edit=<id>`). Saving returns to the previous view and filter (a new wish to «Offen» without filter); on an error, the form is shown again.
+- After any other action, `/admin` returns to the current view and filter.
+- A link to the login log (2.9) is at the bottom of every view.
 
 ---
 
