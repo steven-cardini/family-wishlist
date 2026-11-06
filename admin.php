@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
-/** Host pattern => tracking parameter pattern; '/^/' matches all hosts. */
+/** Host pattern => tracking parameter pattern; '/^/' matches everything. */
 const TRACKING_PARAMS = [
     '/^/' => '/^(utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|gad_source|gad_campaignid|msclkid|yclid|twclid'
-        . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid)$/i',
+        . '|ttclid|igshid|li_fat_id|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi|mkt_tok|srsltid|campaignid|adgroupid|adid)$/i',
     '/(^|\.)amazon\.[a-z.]+$/i' => '/^(ref|ref_|pd_rd_.*|pf_rd_.*|content-id|crid|dib|dib_tag|keywords|qid|sprefix|sr'
         . '|_encoding|tag|linkcode|linkid|ascsubtag)$/i',
     '/(^|\.)nalda\.ch$/i' => '/^(tm|ap|aaid)$/i',
+    '/^(www\.)?(galaxus|digitec)\.[a-z]+$/i' => '/^/',
 ];
 const CURRENCIES = ['CHF', 'EUR', 'USD'];
 const ADMIN_VIEWS = ['open', 'reserved', 'recipients'];

@@ -409,7 +409,7 @@ check('optional fields stored as NULL',wish($bike)['description'] === null && wi
     && wish($bike)['url'] === null && wish($bike)['image_url'] === null);
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
     'url' => 'https://www.amazon.de/dp/B01/ref=sr_1_3?crid=X&keywords=velo&qid=1&th=1&sr=8-3&psc=1#info',
-    'image_url' => 'https://img.example.com/velo.jpg?utm_source=a&w=800&UTM_Medium=b&gclid=c&sr=1&srsltid=d'] + $wishForm);
+    'image_url' => 'https://img.example.com/velo.jpg?utm_source=a&w=800&UTM_Medium=b&gclid=c&sr=1&srsltid=d&campaignid=1&adgroupid=&adid=2'] + $wishForm);
 check('tracking parameters are removed from URLs', wish($bike)['url'] === 'https://www.amazon.de/dp/B01/ref=sr_1_3?th=1&psc=1#info'
     && wish($bike)['image_url'] === 'https://img.example.com/velo.jpg?w=800&sr=1');
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']], 'url' => 'https://shop.example.com/velo?utm_source=a&fbclid=b'] + $wishForm);
@@ -419,6 +419,11 @@ admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
     'image_url' => 'https://img.example.com/velo.jpg?tm=1&ap=2'] + $wishForm);
 check('shop-specific tracking parameters are removed only on that shop', wish($bike)['url'] === 'https://nalda.ch/products/9783551281524'
     && wish($bike)['image_url'] === 'https://img.example.com/velo.jpg?tm=1&ap=2');
+admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']],
+    'url' => 'https://www.digitec.ch/de/s1/product/tiptoi-35847762?offertype=retail&offerid=406802&dgCidg=Cj0K#x',
+    'image_url' => 'https://static01.galaxus.com/productimages/1/2/velo.jpg?impolicy=product&resizeWidth=720'] + $wishForm);
+check('all parameters are removed on Galaxus/Digitec shop pages only', wish($bike)['url'] === 'https://www.digitec.ch/de/s1/product/tiptoi-35847762#x'
+    && wish($bike)['image_url'] === 'https://static01.galaxus.com/productimages/1/2/velo.jpg?impolicy=product&resizeWidth=720');
 admin(['id' => $bike, 'title' => 'Velo', 'recipients' => [$ids['Kind']]] + $wishForm);
 
 // 2.2: wishlist page
